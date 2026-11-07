@@ -1,0 +1,8 @@
+[{
+      "relation": ["delegate_permission/common.handle_all_urls"],
+      "target": {
+        "namespace": "android_app",
+        "package_name": "com.algani.nobar",
+        "sha256_cert_fingerprints": ["CC:C9:8E:9E:4A:54:01:D7:0B:47:28:31:DB:1D:CE:59:87:A3:F5:7E:91:BB:9A:0D:F6:84:68:45:C1:C6:57:33"]
+      }
+    }]
