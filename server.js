@@ -1,7 +1,7 @@
 const http = require('http'), fs = require('fs'), path = require('path');
 const { WebSocketServer } = require('ws');
 const MAX = 8, PUB = path.join(__dirname, 'public');
-const MIME = { '.html': 'text/html; charset=utf-8', '.json': 'application/json', '.svg': 'image/svg+xml' };
+const MIME = { '.js': 'text/javascript; charset=utf-8', '.html': 'text/html; charset=utf-8', '.json': 'application/json', '.svg': 'image/svg+xml' };
 const server = http.createServer((req, res) => {
   let f = req.url.split('?')[0]; if (f === '/') f = '/index.html';
   const p = path.join(PUB, path.normalize(f).replace(/^(\.\.[/\\])+/, ''));
