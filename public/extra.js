@@ -25,7 +25,7 @@ const go=$('go'),pw=document.createElement('input');pw.id='pw';pw.type='text';pw
 let dp=null;const ib=mkb('📲 Pasang aplikasi');ib.style.display='none';go.after(ib);
 addEventListener('beforeinstallprompt',e=>{e.preventDefault();dp=e;ib.style.display='block'});
 ib.onclick=async()=>{if(!dp)return;dp.prompt();try{await dp.userChoice}catch(e){}dp=null;ib.style.display='none'};
-addEventListener('appinstalled',()=>ib.style.display='none');
+addEventListener('appinstalled',()=>{ib.style.display='none';fetch('/api/installed',{method:'POST'}).catch(()=>{})});
 const ml=document.createElement('link');ml.rel='manifest';ml.href='/manifest.json';document.head.appendChild(ml);
 if('serviceWorker' in navigator)navigator.serviceWorker.register('/sw.js').catch(()=>{});
 /* reactions */
