@@ -1,25 +1,47 @@
 <!DOCTYPE html>
 <html lang="id"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="theme-color" content="#0b1020"><title>Nobar</title>
+<meta name="theme-color" content="#0b1020">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Nobar">
+<link rel="apple-touch-icon" href="/icon-192.png">
+<title>Nobar</title>
 <style>
 :root{--ink:#f4f7ff;--mute:#b4bedb;--glass:rgba(255,255,255,.12);--edge:rgba(255,255,255,.28);--acc:#7fd6ff}
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{height:100%;margin:0}
-body{font:15px/1.4 system-ui,-apple-system,Roboto,sans-serif;color:var(--ink);background:#0b1020;overflow:hidden;
+body{font:15px/1.4 system-ui,-apple-system,Roboto,sans-serif;color:var(--ink);background:#0b1020;overflow:hidden;overscroll-behavior:none;
 padding:env(safe-area-inset-top) 0 env(safe-area-inset-bottom)}
-.bg{position:fixed;inset:0;z-index:-1;background:radial-gradient(45% 35% at 12% 8%,#4f6bff,transparent 70%),radial-gradient(40% 35% at 95% 28%,#00d4b4cc,transparent 70%),radial-gradient(55% 45% at 30% 100%,#c13bffcc,transparent 70%),radial-gradient(35% 30% at 80% 75%,#ff7a59aa,transparent 70%),#0b1020}
+.bg{position:fixed;inset:0;z-index:-1;overflow:hidden;background:radial-gradient(45% 35% at 12% 8%,#4f6bff,transparent 70%),radial-gradient(40% 35% at 95% 28%,#00d4b4cc,transparent 70%),radial-gradient(55% 45% at 30% 100%,#c13bffcc,transparent 70%),radial-gradient(35% 30% at 80% 75%,#ff7a59aa,transparent 70%),#0b1020}
+.bg::before,.bg::after{content:"";position:absolute;width:70vmax;height:70vmax;border-radius:50%;opacity:.45;animation:dr 18s ease-in-out infinite alternate}
+.bg::before{left:-30vmax;top:-20vmax;background:radial-gradient(closest-side,#5b7bff,transparent)}
+.bg::after{right:-35vmax;bottom:-25vmax;background:radial-gradient(closest-side,#c13bff,transparent);animation-delay:-9s}
+@keyframes dr{to{transform:translate(12vmax,10vmax)}}
+@keyframes bob{50%{transform:translateY(-8px)}}
 html,body,#join,#room{height:100dvh}
 .glass{border-radius:28px;background:linear-gradient(135deg,rgba(255,255,255,.24),rgba(255,255,255,.07) 55%,rgba(255,255,255,.14));-webkit-backdrop-filter:blur(34px) saturate(1.9) brightness(1.1);backdrop-filter:blur(34px) saturate(1.9) brightness(1.1);border:1px solid rgba(255,255,255,.16);box-shadow:inset 0 1.5px 0 rgba(255,255,255,.6),inset 0 -1px 0 rgba(255,255,255,.14),inset 0 0 28px rgba(255,255,255,.07),0 14px 44px rgba(0,0,0,.32)}
 input,button{font:inherit;color:var(--ink);border-radius:999px;border:1px solid rgba(255,255,255,.2);background:rgba(255,255,255,.14);padding:12px 16px;outline:none;-webkit-backdrop-filter:blur(14px) saturate(1.6);backdrop-filter:blur(14px) saturate(1.6);box-shadow:inset 0 1px 0 rgba(255,255,255,.4)}
+input{font-size:16px;-webkit-appearance:none;appearance:none}
 input::placeholder{color:var(--mute)} input:focus,button:focus-visible{border-color:var(--acc)}
-button{cursor:pointer;font-weight:600} button:active{transform:scale(.97)} button:disabled{opacity:.4}
+button{cursor:pointer;font-weight:600;font-size:15px} button:active{transform:scale(.97)} button:disabled{opacity:.4}
 .pri{background:linear-gradient(135deg,rgba(127,214,255,.45),rgba(157,140,255,.45))}
-#join{display:flex;align-items:center;justify-content:center;padding:20px}
-#join .glass{width:100%;max-width:360px;padding:26px;display:grid;gap:12px}
-h1{margin:0 0 4px;font-size:28px;letter-spacing:-.5px} .sub{color:var(--mute);margin:0 0 8px}
+#join{display:flex;flex-direction:column;align-items:center;padding:20px;text-align:center}
+.hero{flex:1;width:100%;max-width:380px;display:flex;flex-direction:column;align-items:center;justify-content:center}
+.logo{width:92px;height:92px;display:grid;place-items:center;margin-bottom:12px;animation:bob 5s ease-in-out infinite}
+.logo svg{width:50px;height:50px}
+h1{font-size:46px;font-weight:800;letter-spacing:-1.5px;margin:0;background:linear-gradient(135deg,#fff,#9be7ff 45%,#c9a8ff);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;color:transparent}
+.sub{color:var(--mute);margin:6px 0 0}
+.card{width:100%;padding:20px;display:grid;gap:12px;margin-top:20px}
+.chips{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin-top:18px}
+.chips span{font-size:12px;padding:6px 12px;border-radius:999px;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.16);color:var(--mute)}
+#ioshint{display:none;font-size:12px;color:var(--mute);margin:12px 0 0}
+footer{padding:10px 0 6px;font-size:12px;color:var(--mute);letter-spacing:.3px}footer b{color:var(--ink)}
 #room{display:none;flex-direction:column;gap:10px;padding:10px;max-width:640px;margin:0 auto}
-.top{display:flex;align-items:center;justify-content:space-between;padding:8px 14px;gap:8px}
+.top{display:flex;align-items:center;justify-content:space-between;padding:8px 12px;gap:8px}
+.tl{display:flex;align-items:center;gap:10px;min-width:0}.tl>div{line-height:1.25;min-width:0}.tl .badge{display:block}
+#leave{padding:7px 12px;font-size:13px}
 .top b{letter-spacing:2px}.badge{font-size:12px;color:var(--mute)}
 #stage{position:relative;aspect-ratio:16/9;background:#000;border-radius:28px;overflow:hidden;border:1px solid var(--edge);box-shadow:0 14px 44px rgba(0,0,0,.4)}
 #stage>*{position:absolute;inset:0;width:100%;height:100%;border:0}
@@ -33,15 +55,22 @@ h1{margin:0 0 4px;font-size:28px;letter-spacing:-.5px} .sub{color:var(--mute);ma
 .m{max-width:85%;padding:7px 12px;border-radius:18px;background:rgba(255,255,255,.14);box-shadow:inset 0 1px 0 rgba(255,255,255,.3);word-break:break-word}
 .m small{display:block;color:var(--mute);font-size:11px}.m.me{align-self:flex-end;background:rgba(127,214,255,.3)}
 .m.sys{align-self:center;background:none;box-shadow:none;color:var(--mute);font-size:12px}
-#toast{position:fixed;left:50%;top:14px;transform:translateX(-50%);background:rgba(20,26,48,.95);border:1px solid var(--edge);padding:8px 16px;border-radius:999px;display:none;z-index:9}
+#toast{position:fixed;left:50%;top:calc(env(safe-area-inset-top,0px) + 14px);transform:translateX(-50%);background:rgba(20,26,48,.95);border:1px solid var(--edge);padding:8px 16px;border-radius:999px;display:none;z-index:9}
 #stage>#unm{display:none;z-index:5;width:auto;height:auto;inset:auto auto 10px 50%;transform:translateX(-50%);background:rgba(20,26,48,.9);padding:8px 14px}
+@media(prefers-reduced-motion:reduce){*{animation:none!important}}
 </style></head><body><div class="bg"></div><div id="toast"></div>
-<div id="join"><div class="glass"><h1>Nobar</h1><p class="sub">Nonton bareng, maksimal 8 orang.</p>
+<div id="join"><div class="hero">
+<div class="logo glass"><svg viewBox="0 0 64 64"><defs><linearGradient id="lg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#9be7ff"/><stop offset="1" stop-color="#b79bff"/></linearGradient></defs><circle cx="32" cy="32" r="29" fill="none" stroke="url(#lg)" stroke-width="3"/><path d="M26 19l21 13-21 13z" fill="url(#lg)"/></svg></div>
+<h1>Nobar</h1><p class="sub">Nonton bareng, ngobrol bareng.<br>Satu room untuk 8 orang.</p>
+<div class="glass card">
 <input id="name" placeholder="Nama kamu" maxlength="16" autocomplete="off">
 <input id="code" placeholder="Kode room" maxlength="12" autocapitalize="characters" autocomplete="off">
-<button class="pri" id="go">Masuk room</button></div></div>
+<button class="pri" id="go">Masuk room</button></div>
+<div class="chips"><span>▶ Sinkron</span><span>💬 Chat</span><span>🎤 Voice</span><span>📷 Video</span></div>
+<p id="ioshint">Di iPhone: ketuk tombol Bagikan lalu pilih “Tambah ke Layar Utama”.</p>
+</div><footer>Dibuat oleh <b>Algani Hamid</b></footer></div>
 <div id="room">
-<div class="glass top"><div><b id="rc"></b> <span class="badge" id="info"></span></div><button id="share" style="padding:6px 12px">Salin link</button></div>
+<div class="glass top"><div class="tl"><button id="leave">Keluar</button><div><b id="rc"></b><span class="badge" id="info"></span></div></div><button id="share" style="padding:6px 12px">Salin link</button></div>
 <div id="stage"><div id="empty">Belum ada video. Tempel link YouTube atau video langsung (.mp4) di bawah.</div></div>
 <div class="glass ctl"><button id="pp" style="width:46px;padding:10px 0">▶</button><input type="range" id="seek" min="0" max="1000" value="0"><span class="badge" id="tm">0:00</span></div>
 <div class="row"><input id="url" placeholder="Link YouTube / .mp4" autocomplete="off"><button id="load" class="pri">Putar</button></div>
@@ -50,18 +79,24 @@ h1{margin:0 0 4px;font-size:28px;letter-spacing:-.5px} .sub{color:var(--mute);ma
 </div>
 <script>
 const $=id=>document.getElementById(id);
-let ws,me=0,host=0,mode='solo',code='',name='',vid=null,playing=false,yt=null,el=null,retry=0,dragging=false,sync=null;
+let ws,me=0,host=0,mode='solo',code='',name='',vid=null,playing=false,yt=null,el=null,retry=0,dragging=false,sync=null,leaving=false,lt=0;
 const toast=t=>{const e=$('toast');e.textContent=t;e.style.display='block';clearTimeout(toast.h);toast.h=setTimeout(()=>e.style.display='none',2500)};
 const fmt=s=>{s=Math.max(0,s|0);return(s/60|0)+':'+String(s%60).padStart(2,'0')};
+const ios=/iP(hone|ad|od)/.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
+if(ios&&!navigator.standalone)$('ioshint').style.display='block';
 const hash=location.hash.slice(1);if(hash)$('code').value=decodeURIComponent(hash).toUpperCase();
 try{$('name').value=localStorage.getItem('nobar-name')||''}catch(e){}
 $('go').onclick=()=>{name=$('name').value.trim();code=$('code').value.trim().toUpperCase();
  if(!name||!code)return toast('Isi nama dan kode room');try{localStorage.setItem('nobar-name',name)}catch(e){}
  location.hash=code;$('join').style.display='none';$('room').style.display='flex';$('rc').textContent=code;connect()};
+['name','code'].forEach(i=>$(i).onkeydown=e=>{if(e.key==='Enter')$('go').click()});
+$('leave').onclick=()=>{const b=$('leave');
+ if(!lt){b.textContent='Yakin?';b.classList.add('pri');lt=setTimeout(()=>{lt=0;b.textContent='Keluar';b.classList.remove('pri')},3000);return}
+ clearTimeout(lt);leaving=true;try{ws.close()}catch(e){}location.replace(location.pathname)};
 function connect(){
  ws=new WebSocket((location.protocol==='https:'?'wss://':'ws://')+location.host);
  ws.onopen=()=>{retry=0;ws.send(JSON.stringify({t:'join',room:code,name}))};
- ws.onclose=()=>{toast('Terputus, menyambung ulang…');setTimeout(connect,Math.min(1000*++retry,5000))};
+ ws.onclose=()=>{if(leaving)return;toast('Terputus, menyambung ulang…');setTimeout(connect,Math.min(1000*++retry,5000))};
  ws.onmessage=e=>{const m=JSON.parse(e.data);
   if(m.t==='joined'){me=m.id}
   else if(m.t==='members'){const prevHost=host;host=m.host;mode=m.mode;
@@ -120,4 +155,4 @@ function sys(t){add(document.createTextNode(t),'sys')}
 const send=()=>{const t=$('msg').value.trim();if(t&&ws.readyState===1){ws.send(JSON.stringify({t:'chat',text:t}));$('msg').value=''}};
 $('snd').onclick=send;$('msg').onkeydown=e=>{if(e.key==='Enter')send()};
 $('share').onclick=()=>{const u=location.href;(navigator.clipboard?navigator.clipboard.writeText(u):Promise.reject()).then(()=>toast('Link disalin'),()=>prompt('Salin link:',u))};
-</script><script src="rtc.js"></script><script src="extra.js"></script></body></html>
+</script><script src="rtc.js"></script><script src="extra.js"></script><script src="ios.js"></script></body></html>
