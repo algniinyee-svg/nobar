@@ -59,7 +59,10 @@ function render(){const b=$('plist');b.innerHTML='';
  list.forEach(x=>{const r=document.createElement('div');r.className='pr'+(spk.has(x.id)?' spk':'');r.dataset.id=x.id;
   const d=document.createElement('i');d.className='d';const n=document.createElement('span');
   n.textContent=x.name+(x.id===me?' (kamu)':'')+(x.id===host?' 👑':'');r.append(d,n);
-  if(mode==='host'&&host===me&&x.id!==me){const k=mkb('🔇 Bisukan');k.style.padding='6px 12px';k.onclick=()=>ws.send(JSON.stringify({t:'mute',to:x.id}));r.append(k)}
+    if(host===me&&x.id!==me){const bt=(l,f)=>{const k=mkb(l);k.style.padding='6px 10px';k.onclick=f;r.append(k)},tx=o=>ws.send(JSON.stringify(o));
+   if(mode==='host')bt('🔇',()=>tx({t:'mute',to:x.id}));
+   bt('👑',()=>{if(confirm('Jadikan '+x.name+' sebagai host?'))tx({t:'givehost',to:x.id})});
+   bt('🚪',()=>{if(confirm('Keluarkan '+x.name+' dari room?'))tx({t:'kick',to:x.id})})}
   b.appendChild(r)})}
 function onMsg(m){
  if(m.t==='members'){list=m.list;m.list.forEach(x=>names.set(x.id,x.name));const ids=new Set(m.list.map(x=>x.id));
