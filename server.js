@@ -52,7 +52,7 @@ function apply(r, a) {
   r.at = Date.now(); bcast(r, stateMsg(r)); if (qb) bcast(r, qmsg(r));
 }
 function validVideo(v) {
-  if (!v || typeof v.url !== 'string') return null;
+  if (!v) return null;
   if (v.type === 'yt' && /^[\w-]{11}$/.test(v.id)) return { type: 'yt', id: v.id };
   if (v.type === 'url' && /^https?:\/\//i.test(v.url) && v.url.length < 1000) return { type: 'url', url: v.url };
   return null;
