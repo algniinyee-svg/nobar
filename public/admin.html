@@ -1,0 +1,18 @@
+<!DOCTYPE html><html lang="id"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex"><title>Nobar Admin</title>
+<style>body{margin:0;padding:16px;font:15px system-ui,sans-serif;background:#0b1020;color:#f4f7ff}
+.g{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:14px 0}.c{background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2);border-radius:18px;padding:12px}
+.c b{display:block;font-size:26px}.c span{font-size:12px;color:#b4bedb}input,button{font:inherit;padding:10px 14px;border-radius:999px;border:1px solid rgba(255,255,255,.25);background:rgba(255,255,255,.12);color:#fff}
+table{width:100%;border-collapse:collapse}td,th{text-align:left;padding:6px 4px;border-bottom:1px solid rgba(255,255,255,.12);font-size:13px}p{color:#b4bedb;font-size:12px}</style></head><body>
+<h2>Nobar Admin</h2><div id="lg"><input id="k" type="password" placeholder="Kunci admin"> <button id="go">Masuk</button></div>
+<div id="d" style="display:none"><div class="g" id="g"></div><h3>Room aktif</h3><table><thead><tr><th>Kode</th><th>Orang</th><th>Status</th><th>Video</th><th>Antre</th></tr></thead><tbody id="t"></tbody></table><p id="s"></p></div>
+<script>
+const $=i=>document.getElementById(i);let key='',tm;
+async function load(){try{const r=await fetch('/api/stats',{headers:{'x-admin-key':key}});
+ if(r.status===401){clearInterval(tm);$('d').style.display='none';$('lg').style.display='block';return alert('Kunci salah')}
+ const s=await r.json();$('lg').style.display='none';$('d').style.display='block';
+ const c=[['Online sekarang',s.online],['Room aktif',s.active.length],['Room dibuat',s.rooms],['Percobaan masuk',s.joins],['Puncak online',s.peak],['Terpasang (PWA)',s.installs]];
+ $('g').innerHTML=c.map(x=>'<div class="c"><b>'+x[1]+'</b><span>'+x[0]+'</span></div>').join('');
+ $('t').innerHTML=s.active.map(a=>'<tr><td>'+a.code+(a.locked?' 🔒':'')+'</td><td>'+a.n+'</td><td>'+(a.playing?'▶':'⏸')+'</td><td>'+a.video+'</td><td>'+a.queue+'</td></tr>').join('')||'<tr><td colspan=5>Tidak ada room aktif</td></tr>';
+ $('s').textContent='Dihitung sejak '+new Date(s.since).toLocaleString('id-ID')+' (reset setiap deploy ulang). Diperbarui tiap 5 detik.'}catch(e){}}
+$('go').onclick=()=>{key=$('k').value.trim();load();clearInterval(tm);tm=setInterval(load,5000)};
+</script></body></html>
