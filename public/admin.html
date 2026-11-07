@@ -4,15 +4,21 @@
 .c b{display:block;font-size:26px}.c span{font-size:12px;color:#b4bedb}input,button{font:inherit;padding:10px 14px;border-radius:999px;border:1px solid rgba(255,255,255,.25);background:rgba(255,255,255,.12);color:#fff}
 table{width:100%;border-collapse:collapse}td,th{text-align:left;padding:6px 4px;border-bottom:1px solid rgba(255,255,255,.12);font-size:13px}p{color:#b4bedb;font-size:12px}</style></head><body>
 <h2>Nobar Admin</h2><div id="lg"><input id="k" type="password" placeholder="Kunci admin"> <button id="go">Masuk</button></div>
-<div id="d" style="display:none"><div class="g" id="g"></div><h3>Room aktif</h3><table><thead><tr><th>Kode</th><th>Orang</th><th>Status</th><th>Video</th><th>Antre</th></tr></thead><tbody id="t"></tbody></table><p id="s"></p></div>
+<div id="d" style="display:none"><div class="g" id="g"></div><h3>Room aktif</h3><table><thead><tr><th>Kode</th><th>Orang</th><th>Status</th><th>Video</th><th>Antre</th></tr></thead><tbody id="t"></tbody></table>
+<h3>Riwayat (tersimpan)</h3><div class="g" id="h"></div><table><tbody id="hd"></tbody></table><p id="s"></p></div>
 <script>
 const $=i=>document.getElementById(i);let key='',tm;
 async function load(){try{const r=await fetch('/api/stats',{headers:{'x-admin-key':key}});
  if(r.status===401){clearInterval(tm);$('d').style.display='none';$('lg').style.display='block';return alert('Kunci salah')}
  const s=await r.json();$('lg').style.display='none';$('d').style.display='block';
- const c=[['Online sekarang',s.online],['Room aktif',s.active.length],['Room dibuat',s.rooms],['Percobaan masuk',s.joins],['Puncak online',s.peak],['Terpasang (PWA)',s.installs]];
+ const c=[['Online sekarang',s.online],['Room aktif',s.active.length],['Room dibuat',s.rooms],['Masuk (sesi ini)',s.joins],['Puncak online',s.peak],['Terpasang (PWA)',s.installs]];
  $('g').innerHTML=c.map(x=>'<div class="c"><b>'+x[1]+'</b><span>'+x[0]+'</span></div>').join('');
  $('t').innerHTML=s.active.map(a=>'<tr><td>'+a.code+(a.locked?' 🔒':'')+'</td><td>'+a.n+'</td><td>'+(a.playing?'▶':'⏸')+'</td><td>'+a.video+'</td><td>'+a.queue+'</td></tr>').join('')||'<tr><td colspan=5>Tidak ada room aktif</td></tr>';
- $('s').textContent='Dihitung sejak '+new Date(s.since).toLocaleString('id-ID')+' (reset setiap deploy ulang). Diperbarui tiap 5 detik.'}catch(e){}}
-$('go').onclick=()=>{key=$('k').value.trim();load();clearInterval(tm);tm=setInterval(load,5000)};
+ $('s').textContent='Angka sesi dihitung sejak '+new Date(s.since).toLocaleString('id-ID')+' (reset tiap deploy). Riwayat dari database tidak reset. Diperbarui tiap 5 detik.'}catch(e){}}
+async function hist(){try{const r=await fetch('/api/history',{headers:{'x-admin-key':key}});if(!r.ok)return;const s=await r.json();
+ if(!s.db){$('h').innerHTML='<div class="c"><span>Database belum aktif</span></div>';$('hd').innerHTML='';return}
+ const T=s.totals||{};$('h').innerHTML=[['Room (total)',T.room||0],['Masuk (total)',T.join||0],['Terpasang (total)',T.install||0]].map(x=>'<div class="c"><b>'+x[1]+'</b><span>'+x[0]+'</span></div>').join('');
+ const D={};(s.days||[]).forEach(x=>{(D[x.day]=D[x.day]||{})[x.kind]=x.n});
+ $('hd').innerHTML='<tr><th>Tanggal</th><th>Room</th><th>Masuk</th><th>Pasang</th></tr>'+Object.keys(D).map(d=>'<tr><td>'+d+'</td><td>'+(D[d].room||0)+'</td><td>'+(D[d].join||0)+'</td><td>'+(D[d].install||0)+'</td></tr>').join('')}catch(e){}}
+$('go').onclick=()=>{key=$('k').value.trim();load();hist();clearInterval(tm);tm=setInterval(()=>{load();hist()},5000)};
 </script></body></html>
