@@ -121,3 +121,27 @@ wss.on('connection', ws => {
 });
 setInterval(() => wss.clients.forEach(w => { if (!w.isAlive) return w.terminate(); w.isAlive = false; w.ping(); }), 20000);
 server.listen(process.env.PORT || 3000, () => console.log('nobar on', process.env.PORT || 3000));
+const stats = { since: Date.now(), rooms: 0, joins: 0, installs: 0, peak: 0 };
+const seenR = new WeakSet();
+const onlineNow = () => [...rooms.values()].reduce((a, r) => a + r.members.length, 0);
+wss.on('connection', ws => ws.on('message', raw => {
+  try {
+    const m = JSON.parse(raw); if (m.t !== 'join') return;
+    stats.joins++;
+    const room = rooms.get(String(m.room || '').replace(/[<>]/g, '').trim().slice(0, 12).toUpperCase());
+    if (room && !seenR.has(room)) { seenR.add(room); stats.rooms++; }
+    stats.peak = Math.max(stats.peak, onlineNow());
+  } catch {}
+}));
+const origReq = server.listeners('request')[0];
+server.removeAllListeners('request');
+server.on('request', (req, res) => {
+  const f = req.url.split('?')[0];
+  if (f === '/api/installed' && req.method === 'POST') { stats.installs++; res.writeHead(204); return res.end(); }
+  if (f === '/api/stats') {
+    if (!process.env.ADMIN_KEY || req.headers['x-admin-key'] !== process.env.ADMIN_KEY) { res.writeHead(401); return res.end('Unauthorized'); }
+    res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
+    return res.end(JSON.stringify({ ...stats, now: Date.now(), online: onlineNow(), active: [...rooms.values()].map(r => ({ code: r.code, n: r.members.length, locked: !!r.pw, playing: r.playing, video: r.video ? (r.video.type === 'yt' ? 'YouTube' : 'Link') : '-', queue: r.queue.length })) }));
+  }
+  origReq(req, res);
+});
