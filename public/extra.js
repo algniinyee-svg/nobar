@@ -21,7 +21,7 @@ function on(m){
  else if(m.t==='queue'){q=m.q||[];renderQ()}
  else if(m.t==='react')fl(m.e)}
 /* password + install */
-const go=$('go'),pw=document.createElement('input');pw.id='pw';pw.type='password';pw.placeholder='Password room (opsional)';pw.maxLength=20;pw.autocomplete='off';go.before(pw);
+const go=$('go'),pw=document.createElement('input');pw.id='pw';pw.type='text';pw.style.webkitTextSecurity='disc';pw.name='rm'+Math.random().toString(36).slice(2);pw.setAttribute('autocomplete','off');pw.placeholder='Password room (opsional)';pw.maxLength=20;pw.autocomplete='off';go.before(pw);
 let dp=null;const ib=mkb('📲 Pasang aplikasi');ib.style.display='none';go.after(ib);
 addEventListener('beforeinstallprompt',e=>{e.preventDefault();dp=e;ib.style.display='block'});
 ib.onclick=async()=>{if(!dp)return;dp.prompt();try{await dp.userChoice}catch(e){}dp=null;ib.style.display='none'};
