@@ -10,7 +10,7 @@ const server = http.createServer((req, res) => {
     res.writeHead(200, { 'Content-Type': MIME[path.extname(p)] || 'application/octet-stream' }); res.end(d);
   });
 });
-const wss = new WebSocketServer({ server, maxPayload: 8192 });
+const wss = new WebSocketServer({ server, maxPayload: 65536 });
 const rooms = new Map(); let uid = 0;
 const send = (ws, m) => ws.readyState === 1 && ws.send(JSON.stringify(m));
 const clean = (s, n) => String(s || '').replace(/[<>]/g, '').trim().slice(0, n);
@@ -54,6 +54,7 @@ wss.on('connection', ws => {
     }
     if (!r) return;
     if (m.t === 'chat') { const x = clean(m.text, 300); if (x) bcast(r, { t: 'chat', from: me.name, id: me.id, text: x }); return; }
+    if (m.t === 'sig') { const to = r.members.find(c => c.id === m.to); if (to && m.data) send(to.ws, { t: 'sig', from: me.id, data: m.data }); return; }
     if (m.t === 'tick') { if (r.host === me.id && r.playing) { r.pos = +m.pos || 0; r.at = Date.now(); bcast(r, stateMsg(r)); } return; }
     if (m.t === 'act') {
       const a = { k: m.k, pos: m.pos, video: m.k === 'load' ? validVideo(m.video) : null };
