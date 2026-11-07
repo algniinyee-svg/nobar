@@ -1,9 +1,9 @@
-const http = require('http'), fs = require('fs'), path = require('path'), zlib = require('zlib');
+const http = require('http'), fs = require('fs'), path = require('path'), zlib = require('zlib'), crypto = require('crypto'), util = require('util');
 const { WebSocketServer } = require('ws');
 const MAX = 8, PUB = path.join(__dirname, 'public');
 const MIME = { '.js': 'text/javascript; charset=utf-8', '.html': 'text/html; charset=utf-8', '.json': 'application/json', '.svg': 'image/svg+xml' };
 
-/* ---------- ikon aplikasi (dibuat otomatis) ---------- */
+/* ---------- ikon aplikasi ---------- */
 const crcT = (() => { const t = []; for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1; t[n] = c >>> 0; } return t; })();
 const crc = b => { let c = -1; for (const x of b) c = crcT[(c ^ x) & 255] ^ (c >>> 8); return (~c) >>> 0; };
 const chunk = (t, d) => { const l = Buffer.alloc(4); l.writeUInt32BE(d.length); const td = Buffer.concat([Buffer.from(t), d]); const c = Buffer.alloc(4); c.writeUInt32BE(crc(td)); return Buffer.concat([l, td, c]); };
@@ -25,36 +25,80 @@ let pool = null;
 if (process.env.DATABASE_URL) {
   try {
     const { Pool } = require('pg');
-    pool = new Pool({ connectionString: process.env.DATABASE_URL, max: 3 });
+    pool = new Pool({ connectionString: process.env.DATABASE_URL, max: 4 });
     pool.on('error', () => {});
-    pool.query('CREATE TABLE IF NOT EXISTS events (id BIGSERIAL PRIMARY KEY, ts TIMESTAMPTZ NOT NULL DEFAULT now(), kind TEXT NOT NULL, room TEXT)')
-      .catch(e => console.log('db init failed:', e.message));
+    pool.query('CREATE TABLE IF NOT EXISTS events (id BIGSERIAL PRIMARY KEY, ts TIMESTAMPTZ NOT NULL DEFAULT now(), kind TEXT NOT NULL, room TEXT)').catch(e => console.log('db init failed:', e.message));
+    pool.query('CREATE TABLE IF NOT EXISTS accounts (id BIGSERIAL PRIMARY KEY, username TEXT NOT NULL, lname TEXT UNIQUE NOT NULL, salt TEXT NOT NULL, hash TEXT NOT NULL, created TIMESTAMPTZ NOT NULL DEFAULT now())').catch(e => console.log('db init failed:', e.message));
   } catch (e) { console.log('db unavailable:', e.message); pool = null; }
 }
 const logEv = (kind, room) => { if (pool) pool.query('INSERT INTO events(kind, room) VALUES ($1, $2)', [kind, room || null]).catch(() => {}); };
 const adminOK = req => process.env.ADMIN_KEY && req.headers['x-admin-key'] === process.env.ADMIN_KEY;
 const onlineNow = () => [...rooms.values()].reduce((a, r) => a + r.members.length, 0);
 
+/* ---------- akun ---------- */
+const SECRET = crypto.createHash('sha256').update('nobar|' + (process.env.SESSION_SECRET || process.env.DATABASE_URL || '')).digest();
+const scrypt = util.promisify(crypto.scrypt);
+const hashPw = async (pw, salt) => (await scrypt(pw, salt, 32)).toString('hex');
+const sign = p => { const body = Buffer.from(JSON.stringify(p)).toString('base64url'); return body + '.' + crypto.createHmac('sha256', SECRET).update(body).digest('base64url'); };
+function verify(tok) {
+  if (typeof tok !== 'string') return null;
+  const [body, sig] = tok.split('.'); if (!body || !sig) return null;
+  const good = crypto.createHmac('sha256', SECRET).update(body).digest('base64url');
+  const a = Buffer.from(sig), b = Buffer.from(good);
+  if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) return null;
+  try { const p = JSON.parse(Buffer.from(body, 'base64url').toString()); return p.exp > Date.now() ? p : null; } catch { return null; }
+}
+const readJson = req => new Promise(ok => { let s = ''; req.on('data', c => { s += c; if (s.length > 2048) req.destroy(); }); req.on('end', () => { try { ok(JSON.parse(s)); } catch { ok(null); } }); req.on('error', () => ok(null)); });
+const tries = new Map();
+const limited = ip => { const n = Date.now(), a = (tries.get(ip) || []).filter(t => n - t < 600000); a.push(n); tries.set(ip, a); return a.length > 15; };
+setInterval(() => tries.clear(), 3600000);
+
 /* ---------- http ---------- */
 const server = http.createServer(async (req, res) => {
   let f = req.url.split('?')[0];
+  const J = (c, o) => { res.writeHead(c, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }); res.end(JSON.stringify(o)); };
   if (ICONS[f]) { res.writeHead(200, { 'Content-Type': 'image/png', 'Cache-Control': 'public,max-age=86400' }); return res.end(ICONS[f]); }
   if (f === '/api/installed' && req.method === 'POST') { stats.installs++; logEv('install'); res.writeHead(204); return res.end(); }
+  if (f === '/api/me') {
+    const p = verify((req.headers.authorization || '').replace(/^Bearer /, ''));
+    return J(200, { accounts: !!pool, user: p ? p.u : null });
+  }
+  if ((f === '/api/register' || f === '/api/login') && req.method === 'POST') {
+    if (!pool) return J(503, { error: 'Akun belum aktif di server ini.' });
+    const ip = String(req.headers['x-forwarded-for'] || req.socket.remoteAddress || '').split(',')[0].trim();
+    if (limited(ip)) return J(429, { error: 'Terlalu banyak percobaan. Coba lagi nanti.' });
+    const b = await readJson(req), u = String((b && b.username) || '').trim(), p = String((b && b.password) || '');
+    if (!/^[A-Za-z0-9_.-]{3,16}$/.test(u)) return J(400, { error: 'Username 3-16 karakter: huruf, angka, _ . -' });
+    if (p.length < 6 || p.length > 64) return J(400, { error: 'Password 6-64 karakter.' });
+    const exp = Date.now() + 30 * 864e5;
+    try {
+      if (f === '/api/register') {
+        const salt = crypto.randomBytes(16).toString('hex'), h = await hashPw(p, salt);
+        const r = await pool.query('INSERT INTO accounts(username, lname, salt, hash) VALUES ($1,$2,$3,$4) ON CONFLICT (lname) DO NOTHING RETURNING id', [u, u.toLowerCase(), salt, h]);
+        if (!r.rows.length) return J(409, { error: 'Username sudah dipakai.' });
+        logEv('signup');
+        return J(200, { token: sign({ id: r.rows[0].id, u, exp }), user: u });
+      }
+      const r = await pool.query('SELECT id, username, salt, hash FROM accounts WHERE lname = $1', [u.toLowerCase()]);
+      const a = r.rows[0]; let ok = false;
+      if (a) ok = crypto.timingSafeEqual(Buffer.from(await hashPw(p, a.salt)), Buffer.from(a.hash));
+      if (!ok) return J(401, { error: 'Username atau password salah.' });
+      return J(200, { token: sign({ id: a.id, u: a.username, exp }), user: a.username });
+    } catch (e) { return J(500, { error: 'Server error.' }); }
+  }
   if (f === '/api/stats') {
     if (!adminOK(req)) { res.writeHead(401); return res.end('Unauthorized'); }
-    res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
-    return res.end(JSON.stringify({ ...stats, now: Date.now(), online: onlineNow(), active: [...rooms.values()].map(r => ({ code: r.code, n: r.members.length, locked: !!r.pw, playing: r.playing, video: r.video ? (r.video.type === 'yt' ? 'YouTube' : 'Link') : '-', queue: r.queue.length })) }));
+    return J(200, { ...stats, now: Date.now(), online: onlineNow(), active: [...rooms.values()].map(r => ({ code: r.code, n: r.members.length, locked: !!r.pw, playing: r.playing, video: r.video ? (r.video.type === 'yt' ? 'YouTube' : 'Link') : '-', queue: r.queue.length })) });
   }
   if (f === '/api/history') {
     if (!adminOK(req)) { res.writeHead(401); return res.end('Unauthorized'); }
-    res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
-    if (!pool) return res.end(JSON.stringify({ db: false }));
+    if (!pool) return J(200, { db: false });
     try {
       const t = await pool.query('SELECT kind, count(*)::int AS n FROM events GROUP BY kind');
       const d = await pool.query("SELECT ((ts AT TIME ZONE 'Asia/Jakarta')::date)::text AS day, kind, count(*)::int AS n FROM events WHERE ts > now() - interval '7 days' GROUP BY 1, 2 ORDER BY 1 DESC");
       const totals = {}; t.rows.forEach(x => totals[x.kind] = x.n);
-      return res.end(JSON.stringify({ db: true, totals, days: d.rows }));
-    } catch (e) { return res.end(JSON.stringify({ db: false, error: 'query gagal' })); }
+      return J(200, { db: true, totals, days: d.rows });
+    } catch (e) { return J(200, { db: false, error: 'query gagal' }); }
   }
   if (f === '/') f = '/index.html';
   const p = path.join(PUB, path.normalize(f).replace(/^(\.\.[/\\])+/, ''));
@@ -105,26 +149,45 @@ wss.on('connection', ws => {
       if (r) return;
       const code = clean(m.room, 12).toUpperCase(); if (!code) return;
       const pw = clean(m.pw, 20);
+      let user;
+      if (pool) { const au = verify(m.token); if (!au) return send(ws, { t: 'deny', msg: 'Sesi habis, silakan login lagi.' }); user = au.u; }
+      else user = clean(m.name, 16) || 'Tamu';
       let room = rooms.get(code);
       if (room && room.pw && room.pw !== pw) return send(ws, { t: 'deny', msg: 'Password room salah.' });
+      if (room && room.banned.has(user.toLowerCase())) return send(ws, { t: 'deny', msg: 'Kamu dikeluarkan dari room ini.' });
       if (!room) {
-        room = { code, members: [], host: null, video: null, playing: false, pos: 0, at: Date.now(), prop: null, queue: [], pw };
+        room = { code, members: [], host: null, video: null, playing: false, pos: 0, at: Date.now(), prop: null, queue: [], pw, banned: new Set(), chat: [] };
         rooms.set(code, room); stats.rooms++; logEv('room', code);
       }
+      const dup = pool ? room.members.find(c => c.user === user) : null;
+      if (dup) { room.members = room.members.filter(c => c !== dup); if (room.host === dup.id) room.host = null; send(dup.ws, { t: 'replaced' }); dup.ws.close(); }
       if (room.members.length >= MAX) return send(ws, { t: 'deny', msg: 'Room penuh (maks 8 orang).' });
-      me = { id: ++uid, name: clean(m.name, 16) || 'Tamu', ws }; r = room;
+      me = { id: ++uid, name: user, user, ws }; r = room;
       r.members.push(me); if (!r.host) r.host = me.id;
       stats.joins++; stats.peak = Math.max(stats.peak, onlineNow()); logEv('join', code);
       send(ws, { t: 'joined', id: me.id, code });
       members(r); if (r.video) send(ws, stateMsg(r));
       if (r.queue.length) send(ws, qmsg(r));
+      if (r.chat.length) send(ws, { t: 'history', list: r.chat });
       if (r.prop) send(ws, { t: 'proposal', p: r.prop.pub });
       return;
     }
     if (!r) return;
-    if (m.t === 'chat') { const x = clean(m.text, 300); if (x) bcast(r, { t: 'chat', from: me.name, id: me.id, text: x }); return; }
+    if (m.t === 'chat') {
+      const x = clean(m.text, 300);
+      if (x) { r.chat.push({ from: me.name, text: x }); if (r.chat.length > 50) r.chat.shift(); bcast(r, { t: 'chat', from: me.name, id: me.id, text: x }); }
+      return;
+    }
     if (m.t === 'sig') { const to = r.members.find(c => c.id === m.to); if (to && m.data) send(to.ws, { t: 'sig', from: me.id, data: m.data }); return; }
     if (m.t === 'mute') { if (r.host === me.id) { const to = r.members.find(c => c.id === m.to); if (to) send(to.ws, { t: 'mute' }); } return; }
+    if (m.t === 'givehost') { if (r.host === me.id) { const to = r.members.find(c => c.id === m.to); if (to && to !== me) { r.host = to.id; members(r); } } return; }
+    if (m.t === 'kick') {
+      if (r.host === me.id) {
+        const to = r.members.find(c => c.id === m.to);
+        if (to && to !== me) { r.banned.add(to.user.toLowerCase()); send(to.ws, { t: 'kicked' }); setTimeout(() => to.ws.close(), 300); }
+      }
+      return;
+    }
     if (m.t === 'react') { if (EMO.includes(m.e) && Date.now() - (me.rl || 0) > 300) { me.rl = Date.now(); bcast(r, { t: 'react', e: m.e, id: me.id }); } return; }
     if (m.t === 'qadd') { const v = validVideo(m.video); if (v && r.queue.length < 20 && (r.members.length < 3 || r.host === me.id)) { r.queue.push(v); bcast(r, qmsg(r)); } return; }
     if (m.t === 'qrm') { const i = +m.i; if (Number.isInteger(i) && r.queue[i] && (r.members.length < 3 || r.host === me.id)) { r.queue.splice(i, 1); bcast(r, qmsg(r)); } return; }
@@ -154,7 +217,7 @@ wss.on('connection', ws => {
     }
   });
   ws.on('close', () => {
-    if (!r) return;
+    if (!r || !me) return;
     r.members = r.members.filter(c => c !== me);
     if (!r.members.length) return rooms.delete(r.code);
     if (r.host === me.id) r.host = r.members[0].id;
