@@ -27,13 +27,15 @@ input{font-size:16px;-webkit-appearance:none;appearance:none}
 input::placeholder{color:var(--mute)} input:focus,button:focus-visible{border-color:var(--acc)}
 button{cursor:pointer;font-weight:600;font-size:15px} button:active{transform:scale(.97)} button:disabled{opacity:.4}
 .pri{background:linear-gradient(135deg,rgba(127,214,255,.45),rgba(157,140,255,.45))}
+.lnk{background:none;border:0;box-shadow:none;-webkit-backdrop-filter:none;backdrop-filter:none;color:var(--acc);padding:4px 8px;font-size:14px}
+#hi{margin:0;color:var(--mute);text-align:left}#hi b{color:var(--ink)}
 #join{display:flex;flex-direction:column;align-items:center;padding:20px;text-align:center}
 .hero{flex:1;width:100%;max-width:380px;display:flex;flex-direction:column;align-items:center;justify-content:center}
 .logo{width:92px;height:92px;display:grid;place-items:center;margin-bottom:12px;animation:bob 5s ease-in-out infinite}
 .logo svg{width:50px;height:50px}
 h1{font-size:46px;font-weight:800;letter-spacing:-1.5px;margin:0;background:linear-gradient(135deg,#fff,#9be7ff 45%,#c9a8ff);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;color:transparent}
 .sub{color:var(--mute);margin:6px 0 0}
-.card{width:100%;padding:20px;display:grid;gap:12px;margin-top:20px}
+.card{width:100%;padding:20px;gap:12px;margin-top:20px}
 .chips{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin-top:18px}
 .chips span{font-size:12px;padding:6px 12px;border-radius:999px;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.16);color:var(--mute)}
 #ioshint{display:none;font-size:12px;color:var(--mute);margin:12px 0 0}
@@ -55,14 +57,19 @@ footer{padding:10px 0 6px;font-size:12px;color:var(--mute);letter-spacing:.3px}f
 .m{max-width:85%;padding:7px 12px;border-radius:18px;background:rgba(255,255,255,.14);box-shadow:inset 0 1px 0 rgba(255,255,255,.3);word-break:break-word}
 .m small{display:block;color:var(--mute);font-size:11px}.m.me{align-self:flex-end;background:rgba(127,214,255,.3)}
 .m.sys{align-self:center;background:none;box-shadow:none;color:var(--mute);font-size:12px}
-#toast{position:fixed;left:50%;top:calc(env(safe-area-inset-top,0px) + 14px);transform:translateX(-50%);background:rgba(20,26,48,.95);border:1px solid var(--edge);padding:8px 16px;border-radius:999px;display:none;z-index:9}
+#toast{position:fixed;left:50%;top:calc(env(safe-area-inset-top,0px) + 14px);transform:translateX(-50%);background:rgba(20,26,48,.95);border:1px solid var(--edge);padding:8px 16px;border-radius:999px;display:none;z-index:99;max-width:90vw;text-align:center}
 #stage>#unm{display:none;z-index:5;width:auto;height:auto;inset:auto auto 10px 50%;transform:translateX(-50%);background:rgba(20,26,48,.9);padding:8px 14px}
 @media(prefers-reduced-motion:reduce){*{animation:none!important}}
 </style></head><body><div class="bg"></div><div id="toast"></div>
 <div id="join"><div class="hero">
 <div class="logo glass"><svg viewBox="0 0 64 64"><defs><linearGradient id="lg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#9be7ff"/><stop offset="1" stop-color="#b79bff"/></linearGradient></defs><circle cx="32" cy="32" r="29" fill="none" stroke="url(#lg)" stroke-width="3"/><path d="M26 19l21 13-21 13z" fill="url(#lg)"/></svg></div>
 <h1>Nobar</h1><p class="sub">Nonton bareng, ngobrol bareng.<br>Satu room untuk 8 orang.</p>
-<div class="glass card">
+<div class="glass card" id="acard" style="display:none">
+<input id="au" placeholder="Username" maxlength="16" autocomplete="username" autocapitalize="none" autocorrect="off">
+<input id="ap" type="password" placeholder="Password" maxlength="64" autocomplete="current-password">
+<button class="pri" id="ab">Masuk</button><button class="lnk" id="at">Belum punya akun? Daftar</button></div>
+<div class="glass card" id="jcard" style="display:none">
+<p id="hi">Halo, <b id="un"></b> · <button class="lnk" id="lo">Ganti akun</button></p>
 <input id="name" placeholder="Nama kamu" maxlength="16" autocomplete="off">
 <input id="code" placeholder="Kode room" maxlength="12" autocapitalize="characters" autocomplete="off">
 <button class="pri" id="go">Masuk room</button></div>
@@ -79,15 +86,30 @@ footer{padding:10px 0 6px;font-size:12px;color:var(--mute);letter-spacing:.3px}f
 </div>
 <script>
 const $=id=>document.getElementById(id);
-let ws,me=0,host=0,mode='solo',code='',name='',vid=null,playing=false,yt=null,el=null,retry=0,dragging=false,sync=null,leaving=false,lt=0;
-const toast=t=>{const e=$('toast');e.textContent=t;e.style.display='block';clearTimeout(toast.h);toast.h=setTimeout(()=>e.style.display='none',2500)};
+let ws,me=0,host=0,mode='solo',code='',name='',vid=null,playing=false,yt=null,el=null,retry=0,dragging=false,sync=null,leaving=false,lt=0,loadingHist=false;
+let TOKEN='',USER='',ACC=false,reg=false;
+try{TOKEN=localStorage.getItem('nobar-token')||''}catch(e){}
+const toast=t=>{const e=$('toast');e.textContent=t;e.style.display='block';clearTimeout(toast.h);toast.h=setTimeout(()=>e.style.display='none',2800)};
 const fmt=s=>{s=Math.max(0,s|0);return(s/60|0)+':'+String(s%60).padStart(2,'0')};
 const ios=/iP(hone|ad|od)/.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
 if(ios&&!navigator.standalone)$('ioshint').style.display='block';
 const hash=location.hash.slice(1);if(hash)$('code').value=decodeURIComponent(hash).toUpperCase();
 try{$('name').value=localStorage.getItem('nobar-name')||''}catch(e){}
-$('go').onclick=()=>{name=$('name').value.trim();code=$('code').value.trim().toUpperCase();
- if(!name||!code)return toast('Isi nama dan kode room');try{localStorage.setItem('nobar-name',name)}catch(e){}
+function show(){$('acard').style.display=ACC&&!USER?'grid':'none';$('jcard').style.display=!ACC||USER?'grid':'none';
+ $('hi').style.display=ACC?'block':'none';$('un').textContent=USER;$('name').style.display=ACC?'none':'block'}
+(async()=>{try{const r=await fetch('/api/me',{headers:{Authorization:'Bearer '+TOKEN}});const j=await r.json();ACC=!!j.accounts;USER=j.user||''}catch(e){}show()})();
+$('at').onclick=()=>{reg=!reg;$('ab').textContent=reg?'Daftar':'Masuk';$('at').textContent=reg?'Sudah punya akun? Masuk':'Belum punya akun? Daftar';$('ap').autocomplete=reg?'new-password':'current-password'};
+$('ab').onclick=async()=>{const u=$('au').value.trim(),p=$('ap').value;if(!u||!p)return toast('Isi username dan password');
+ $('ab').disabled=true;
+ try{const r=await fetch(reg?'/api/register':'/api/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:u,password:p})});
+  const j=await r.json();if(!r.ok)return toast(j.error||'Gagal');
+  TOKEN=j.token;USER=j.user;try{localStorage.setItem('nobar-token',TOKEN)}catch(e){}$('ap').value='';show()}
+ catch(e){toast('Tidak bisa terhubung ke server')}finally{$('ab').disabled=false}};
+['au','ap'].forEach(i=>$(i).onkeydown=e=>{if(e.key==='Enter')$('ab').click()});
+$('lo').onclick=()=>{TOKEN='';USER='';try{localStorage.removeItem('nobar-token')}catch(e){}show()};
+$('go').onclick=()=>{name=ACC?USER:$('name').value.trim();code=$('code').value.trim().toUpperCase();
+ if(!name||!code)return toast(ACC?'Isi kode room':'Isi nama dan kode room');
+ try{if(!ACC)localStorage.setItem('nobar-name',name)}catch(e){}
  location.hash=code;$('join').style.display='none';$('room').style.display='flex';$('rc').textContent=code;connect()};
 ['name','code'].forEach(i=>$(i).onkeydown=e=>{if(e.key==='Enter')$('go').click()});
 $('leave').onclick=()=>{const b=$('leave');
@@ -95,7 +117,7 @@ $('leave').onclick=()=>{const b=$('leave');
  clearTimeout(lt);leaving=true;try{ws.close()}catch(e){}location.replace(location.pathname)};
 function connect(){
  ws=new WebSocket((location.protocol==='https:'?'wss://':'ws://')+location.host);
- ws.onopen=()=>{retry=0;ws.send(JSON.stringify({t:'join',room:code,name}))};
+ ws.onopen=()=>{retry=0;ws.send(JSON.stringify({t:'join',room:code,name,token:TOKEN}))};
  ws.onclose=()=>{if(leaving)return;toast('Terputus, menyambung ulang…');setTimeout(connect,Math.min(1000*++retry,5000))};
  ws.onmessage=e=>{const m=JSON.parse(e.data);
   if(m.t==='joined'){me=m.id}
@@ -104,7 +126,9 @@ function connect(){
    if(prevHost&&prevHost!==host)sys((m.list.find(x=>x.id===host)||{}).name+' jadi host');ui()}
   else if(m.t==='state'){m.at=Date.now();applyState(m)}
   else if(m.t==='chat')chat(m);
+  else if(m.t==='history'){loadingHist=true;sys('Riwayat chat');m.list.forEach(x=>chat({from:x.from,text:x.text,id:x.from===name?me:0}));sys('Baru bergabung');loadingHist=false}
   else if(m.t==='proposal')proposal(m);
+  else if(m.t==='kicked'||m.t==='replaced'){leaving=true;toast(m.t==='kicked'?'Kamu dikeluarkan oleh host':'Akun dipakai di perangkat lain');setTimeout(()=>location.replace(location.pathname),1600)}
   else if(m.t==='err')toast(m.msg)};
 }
 const act=(k,extra)=>{if(ws&&ws.readyState===1)ws.send(JSON.stringify(Object.assign({t:'act',k,pos:cur()},extra||{})))};
@@ -155,4 +179,4 @@ function sys(t){add(document.createTextNode(t),'sys')}
 const send=()=>{const t=$('msg').value.trim();if(t&&ws.readyState===1){ws.send(JSON.stringify({t:'chat',text:t}));$('msg').value=''}};
 $('snd').onclick=send;$('msg').onkeydown=e=>{if(e.key==='Enter')send()};
 $('share').onclick=()=>{const u=location.href;(navigator.clipboard?navigator.clipboard.writeText(u):Promise.reject()).then(()=>toast('Link disalin'),()=>prompt('Salin link:',u))};
-</script><script src="rtc.js"></script><script src="extra.js"></script><script src="ios.js"></script></body></html>
+</script><script src="rtc.js"></script><script src="extra.js"></script><script src="ios.js"></script><script src="cinema.js"></script></body></html>
