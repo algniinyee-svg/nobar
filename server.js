@@ -121,6 +121,11 @@ const bcast = (r, m) => r.members.forEach(c => send(c.ws, m));
 function members(r) {
   bcast(r, { t: 'members', host: r.host, list: [...r.members].map(c => ({ id: c.id, name: c.name })), mode: r.members.length >= 3 ? 'host' : r.members.length === 2 ? 'duo' : 'solo' });
 }
+function askHost(r) {
+  bcast(r, { t: 'joinreq_clear' });
+  const h = r.members.find(c => c.id === r.host); if (!h) return;
+  r.pending.forEach(p => send(h.ws, { t: 'joinreq', id: p.id, name: p.user }));
+}
 function apply(r, a) {
   let qb = false;
   if (a.k === 'load' && a.video) {
@@ -154,9 +159,16 @@ wss.on('connection', ws => {
       else user = clean(m.name, 16) || 'Tamu';
       let room = rooms.get(code);
       if (room && room.pw && room.pw !== pw) return send(ws, { t: 'deny', msg: 'Password room salah.' });
-      if (room && room.banned.has(user.toLowerCase())) return send(ws, { t: 'deny', msg: 'Kamu dikeluarkan dari room ini.' });
+      if (room && room.banned.has(user.toLowerCase())) {
+        const key = user.toLowerCase();
+        if (ws.pend) return;
+        if ((room.cool.get(key) || 0) > Date.now()) return send(ws, { t: 'deny', msg: 'Host menolak permintaanmu. Coba lagi nanti.' });
+        if (room.pending.size >= 5) return send(ws, { t: 'deny', msg: 'Terlalu banyak permintaan masuk.' });
+        const id = ++uid; room.pending.set(id, { id, user, ws }); ws.pend = { room, id };
+        send(ws, { t: 'wait' }); askHost(room); return;
+      }
       if (!room) {
-        room = { code, members: [], host: null, video: null, playing: false, pos: 0, at: Date.now(), prop: null, queue: [], pw, banned: new Set(), chat: [] };
+        room = { code, members: [], host: null, video: null, playing: false, pos: 0, at: Date.now(), prop: null, queue: [], pw, banned: new Set(), chat: [], pending: new Map(), cool: new Map() };
         rooms.set(code, room); stats.rooms++; logEv('room', code);
       }
       const dup = pool ? room.members.find(c => c.user === user) : null;
@@ -170,6 +182,7 @@ wss.on('connection', ws => {
       if (r.queue.length) send(ws, qmsg(r));
       if (r.chat.length) send(ws, { t: 'history', list: r.chat });
       if (r.prop) send(ws, { t: 'proposal', p: r.prop.pub });
+      if (r.host === me.id && r.pending.size) askHost(r);
       return;
     }
     if (!r) return;
@@ -180,7 +193,15 @@ wss.on('connection', ws => {
     }
     if (m.t === 'sig') { const to = r.members.find(c => c.id === m.to); if (to && m.data) send(to.ws, { t: 'sig', from: me.id, data: m.data }); return; }
     if (m.t === 'mute') { if (r.host === me.id) { const to = r.members.find(c => c.id === m.to); if (to) send(to.ws, { t: 'mute' }); } return; }
-    if (m.t === 'givehost') { if (r.host === me.id) { const to = r.members.find(c => c.id === m.to); if (to && to !== me) { r.host = to.id; members(r); } } return; }
+    if (m.t === 'joinans') {
+      if (r.host !== me.id) return;
+      const p = r.pending.get(+m.id); if (!p) return;
+      r.pending.delete(p.id); p.ws.pend = null;
+      if (m.ok) { r.banned.delete(p.user.toLowerCase()); send(p.ws, { t: 'approved' }); }
+      else { r.cool.set(p.user.toLowerCase(), Date.now() + 30000); send(p.ws, { t: 'deny', msg: 'Host menolak permintaanmu.' }); }
+      return;
+    }
+    if (m.t === 'givehost') { if (r.host === me.id) { const to = r.members.find(c => c.id === m.to); if (to && to !== me) { r.host = to.id; members(r); askHost(r); } } return; }
     if (m.t === 'kick') {
       if (r.host === me.id) {
         const to = r.members.find(c => c.id === m.to);
@@ -217,10 +238,11 @@ wss.on('connection', ws => {
     }
   });
   ws.on('close', () => {
+    if (ws.pend) { const { room, id } = ws.pend; room.pending.delete(id); ws.pend = null; askHost(room); }
     if (!r || !me) return;
     r.members = r.members.filter(c => c !== me);
-    if (!r.members.length) return rooms.delete(r.code);
-    if (r.host === me.id) r.host = r.members[0].id;
+    if (!r.members.length) { r.pending.forEach(p => { p.ws.pend = null; send(p.ws, { t: 'approved' }); }); return rooms.delete(r.code); }
+    if (r.host === me.id) { r.host = r.members[0].id; askHost(r); }
     if (r.prop && (r.prop.by === me.id || r.members.length !== 2)) { r.prop = null; bcast(r, { t: 'proposal', p: null }); }
     members(r);
   });
