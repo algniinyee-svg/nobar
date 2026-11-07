@@ -1,40 +1,39 @@
 <!DOCTYPE html>
 <html lang="id"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="theme-color" content="#0e1424"><title>Nobar</title>
+<meta name="theme-color" content="#0b1020"><title>Nobar</title>
 <style>
-:root{--ink:#f4f7ff;--mute:#a9b4d0;--glass:rgba(255,255,255,.12);--edge:rgba(255,255,255,.28);--acc:#7fd6ff}
+:root{--ink:#f4f7ff;--mute:#b4bedb;--glass:rgba(255,255,255,.12);--edge:rgba(255,255,255,.28);--acc:#7fd6ff}
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{height:100%;margin:0}
-body{font:15px/1.4 system-ui,-apple-system,Roboto,sans-serif;color:var(--ink);background:#0e1424;overflow:hidden;
+body{font:15px/1.4 system-ui,-apple-system,Roboto,sans-serif;color:var(--ink);background:#0b1020;overflow:hidden;
 padding:env(safe-area-inset-top) 0 env(safe-area-inset-bottom)}
-.bg{position:fixed;inset:0;z-index:-1;background:radial-gradient(60% 40% at 15% 10%,#3b5bdb88,transparent),radial-gradient(50% 40% at 90% 30%,#12b8a666,transparent),radial-gradient(60% 50% at 40% 100%,#9c36b588,transparent),#0e1424}
-.glass{background:var(--glass);border:1px solid var(--edge);border-radius:20px;box-shadow:inset 0 1px 0 rgba(255,255,255,.35),0 8px 30px rgba(0,0,0,.25)}
-@supports((backdrop-filter:blur(1px)) or (-webkit-backdrop-filter:blur(1px))){.glass{-webkit-backdrop-filter:blur(18px) saturate(1.4);backdrop-filter:blur(18px) saturate(1.4)}}
-@supports not ((backdrop-filter:blur(1px)) or (-webkit-backdrop-filter:blur(1px))){.glass{background:rgba(40,50,85,.85)}}
-input,button{font:inherit;color:var(--ink);border:1px solid var(--edge);background:rgba(255,255,255,.1);border-radius:14px;padding:12px 14px;outline:none}
+.bg{position:fixed;inset:0;z-index:-1;background:radial-gradient(45% 35% at 12% 8%,#4f6bff,transparent 70%),radial-gradient(40% 35% at 95% 28%,#00d4b4cc,transparent 70%),radial-gradient(55% 45% at 30% 100%,#c13bffcc,transparent 70%),radial-gradient(35% 30% at 80% 75%,#ff7a59aa,transparent 70%),#0b1020}
+html,body,#join,#room{height:100dvh}
+.glass{border-radius:28px;background:linear-gradient(135deg,rgba(255,255,255,.24),rgba(255,255,255,.07) 55%,rgba(255,255,255,.14));-webkit-backdrop-filter:blur(34px) saturate(1.9) brightness(1.1);backdrop-filter:blur(34px) saturate(1.9) brightness(1.1);border:1px solid rgba(255,255,255,.16);box-shadow:inset 0 1.5px 0 rgba(255,255,255,.6),inset 0 -1px 0 rgba(255,255,255,.14),inset 0 0 28px rgba(255,255,255,.07),0 14px 44px rgba(0,0,0,.32)}
+input,button{font:inherit;color:var(--ink);border-radius:999px;border:1px solid rgba(255,255,255,.2);background:rgba(255,255,255,.14);padding:12px 16px;outline:none;-webkit-backdrop-filter:blur(14px) saturate(1.6);backdrop-filter:blur(14px) saturate(1.6);box-shadow:inset 0 1px 0 rgba(255,255,255,.4)}
 input::placeholder{color:var(--mute)} input:focus,button:focus-visible{border-color:var(--acc)}
 button{cursor:pointer;font-weight:600} button:active{transform:scale(.97)} button:disabled{opacity:.4}
-.pri{background:linear-gradient(135deg,#7fd6ff55,#9d8cff55)}
-#join{height:100%;display:flex;align-items:center;justify-content:center;padding:20px}
-#join .glass{width:100%;max-width:360px;padding:24px;display:grid;gap:12px}
-h1{margin:0 0 4px;font-size:26px;letter-spacing:-.5px} .sub{color:var(--mute);margin:0 0 8px}
-#room{height:100%;display:none;flex-direction:column;gap:10px;padding:10px;max-width:640px;margin:0 auto}
+.pri{background:linear-gradient(135deg,rgba(127,214,255,.45),rgba(157,140,255,.45))}
+#join{display:flex;align-items:center;justify-content:center;padding:20px}
+#join .glass{width:100%;max-width:360px;padding:26px;display:grid;gap:12px}
+h1{margin:0 0 4px;font-size:28px;letter-spacing:-.5px} .sub{color:var(--mute);margin:0 0 8px}
+#room{display:none;flex-direction:column;gap:10px;padding:10px;max-width:640px;margin:0 auto}
 .top{display:flex;align-items:center;justify-content:space-between;padding:8px 14px;gap:8px}
 .top b{letter-spacing:2px}.badge{font-size:12px;color:var(--mute)}
-#stage{position:relative;aspect-ratio:16/9;background:#000;border-radius:20px;overflow:hidden;border:1px solid var(--edge)}
+#stage{position:relative;aspect-ratio:16/9;background:#000;border-radius:28px;overflow:hidden;border:1px solid var(--edge);box-shadow:0 14px 44px rgba(0,0,0,.4)}
 #stage>*{position:absolute;inset:0;width:100%;height:100%;border:0}
 #empty{display:flex;align-items:center;justify-content:center;color:var(--mute);text-align:center;padding:16px}
 .ctl{display:flex;gap:8px;align-items:center;padding:8px 10px}
-.ctl input[type=range]{flex:1;padding:0;height:28px;accent-color:var(--acc);background:none;border:0}
+.ctl input[type=range]{flex:1;padding:0;height:28px;accent-color:var(--acc);background:none;border:0;box-shadow:none}
 .row{display:flex;gap:8px;padding:0 2px}.row input{flex:1;min-width:0}
 #prop{display:none;padding:10px 14px;align-items:center;gap:8px;justify-content:space-between}
 #chat{flex:1;min-height:0;display:flex;flex-direction:column;padding:10px}
 #msgs{flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:6px;padding-bottom:8px;-webkit-overflow-scrolling:touch}
-.m{max-width:85%;padding:7px 12px;border-radius:14px;background:rgba(255,255,255,.1);word-break:break-word}
-.m small{display:block;color:var(--mute);font-size:11px}.m.me{align-self:flex-end;background:rgba(127,214,255,.22)}
-.m.sys{align-self:center;background:none;color:var(--mute);font-size:12px}
-#toast{position:fixed;left:50%;top:14px;transform:translateX(-50%);background:rgba(20,26,48,.95);border:1px solid var(--edge);padding:8px 16px;border-radius:14px;display:none;z-index:9}
+.m{max-width:85%;padding:7px 12px;border-radius:18px;background:rgba(255,255,255,.14);box-shadow:inset 0 1px 0 rgba(255,255,255,.3);word-break:break-word}
+.m small{display:block;color:var(--mute);font-size:11px}.m.me{align-self:flex-end;background:rgba(127,214,255,.3)}
+.m.sys{align-self:center;background:none;box-shadow:none;color:var(--mute);font-size:12px}
+#toast{position:fixed;left:50%;top:14px;transform:translateX(-50%);background:rgba(20,26,48,.95);border:1px solid var(--edge);padding:8px 16px;border-radius:999px;display:none;z-index:9}
 #stage>#unm{display:none;z-index:5;width:auto;height:auto;inset:auto auto 10px 50%;transform:translateX(-50%);background:rgba(20,26,48,.9);padding:8px 14px}
 </style></head><body><div class="bg"></div><div id="toast"></div>
 <div id="join"><div class="glass"><h1>Nobar</h1><p class="sub">Nonton bareng, maksimal 8 orang.</p>
