@@ -35,6 +35,7 @@ h1{margin:0 0 4px;font-size:26px;letter-spacing:-.5px} .sub{color:var(--mute);ma
 .m small{display:block;color:var(--mute);font-size:11px}.m.me{align-self:flex-end;background:rgba(127,214,255,.22)}
 .m.sys{align-self:center;background:none;color:var(--mute);font-size:12px}
 #toast{position:fixed;left:50%;top:14px;transform:translateX(-50%);background:rgba(20,26,48,.95);border:1px solid var(--edge);padding:8px 16px;border-radius:14px;display:none;z-index:9}
+#stage>#unm{display:none;z-index:5;width:auto;height:auto;inset:auto auto 10px 50%;transform:translateX(-50%);background:rgba(20,26,48,.9);padding:8px 14px}
 </style></head><body><div class="bg"></div><div id="toast"></div>
 <div id="join"><div class="glass"><h1>Nobar</h1><p class="sub">Nonton bareng, maksimal 8 orang.</p>
 <input id="name" placeholder="Nama kamu" maxlength="16" autocomplete="off">
@@ -50,7 +51,7 @@ h1{margin:0 0 4px;font-size:26px;letter-spacing:-.5px} .sub{color:var(--mute);ma
 </div>
 <script>
 const $=id=>document.getElementById(id);
-let ws,me=0,host=0,mode='solo',code='',name='',vid=null,playing=false,player=null,ytReady=false,yt=null,el=null,ytWant=null,retry=0,dragging=false,sync=null;
+let ws,me=0,host=0,mode='solo',code='',name='',vid=null,playing=false,yt=null,el=null,retry=0,dragging=false,sync=null;
 const toast=t=>{const e=$('toast');e.textContent=t;e.style.display='block';clearTimeout(toast.h);toast.h=setTimeout(()=>e.style.display='none',2500)};
 const fmt=s=>{s=Math.max(0,s|0);return(s/60|0)+':'+String(s%60).padStart(2,'0')};
 const hash=location.hash.slice(1);if(hash)$('code').value=decodeURIComponent(hash).toUpperCase();
@@ -67,7 +68,7 @@ function connect(){
   else if(m.t==='members'){const prevHost=host;host=m.host;mode=m.mode;
    $('info').textContent=m.list.length+' orang · '+(mode==='duo'?'berdua, saling setuju':mode==='solo'?'sendiri':'host: '+(m.list.find(x=>x.id===host)||{}).name);
    if(prevHost&&prevHost!==host)sys((m.list.find(x=>x.id===host)||{}).name+' jadi host');ui()}
-  else if(m.t==='state')applyState(m);
+  else if(m.t==='state'){m.at=Date.now();applyState(m)}
   else if(m.t==='chat')chat(m);
   else if(m.t==='proposal')proposal(m);
   else if(m.t==='err')toast(m.msg)};
@@ -83,23 +84,32 @@ $('seek').onchange=()=>{dragging=false;act('seek',{pos:$('seek').value/1000*dur(
 $('seek').oninput=()=>dragging=true;
 function cur(){try{return yt?yt.getCurrentTime():el?el.currentTime:0}catch(e){return 0}}
 function dur(){try{return(yt?yt.getDuration():el?el.duration:0)||0}catch(e){return 0}}
-function loadYT(){if(window.YT&&YT.Player){ytReady=true;return}
+function loadYT(){if(window.YT&&YT.Player){mountYT();return}
  if(document.getElementById('ytapi'))return;const s=document.createElement('script');s.id='ytapi';s.src='https://www.youtube.com/iframe_api';document.head.appendChild(s);
- window.onYouTubeIframeAPIReady=()=>{ytReady=true;if(ytWant)mountYT()}}
+ window.onYouTubeIframeAPIReady=()=>{if(vid&&vid.type==='yt')mountYT()}}
 function clear(){const s=$('stage');if(yt){try{yt.destroy()}catch(e){}yt=null}if(el){el.pause();el=null}s.innerHTML=''}
 function mountYT(){clear();const d=document.createElement('div');d.id='ytp';$('stage').appendChild(d);
  yt=new YT.Player('ytp',{videoId:vid.id,playerVars:{controls:0,disablekb:1,playsinline:1,rel:0,modestbranding:1,fs:0},
   events:{onReady:()=>{if(sync)applyState(sync)},onError:()=>toast('Video tidak bisa diputar')}})}
 function mountEl(){clear();el=document.createElement('video');el.playsInline=true;el.setAttribute('playsinline','');el.src=vid.url;
  el.onerror=()=>toast('Video tidak bisa diputar');el.onloadedmetadata=()=>{if(sync)applyState(sync)};$('stage').appendChild(el)}
+function ub(){let b=$('unm');if(!b){b=document.createElement('button');b.id='unm';b.textContent='Ketuk untuk menyalakan suara';
+ b.onclick=()=>{try{yt?yt.unMute():(el.muted=false)}catch(e){}b.style.display='none'};$('stage').appendChild(b)}return b}
+function isPlaying(){try{return yt?[1,3].includes(yt.getPlayerState()):!!el&&!el.paused}catch(e){return false}}
+function kick(){if(!sync||!sync.playing||(!yt&&!el))return;
+ try{if(isPlaying())return;if(yt){yt.mute();yt.playVideo()}else{el.muted=true;el.play().catch(()=>{})}ub().style.display='block'}catch(e){}}
+function expect(s){return s.playing?s.pos+(Date.now()-s.at)/1000:s.pos}
 function applyState(s){sync=s;const nv=s.video;if(!nv)return;
  if(!vid||JSON.stringify(vid)!==JSON.stringify(nv)){vid=nv;
-  if(vid.type==='yt'){ytWant=vid;if(window.YT&&YT.Player)mountYT();else loadYT()}else mountEl();return}
+  if(vid.type==='yt')loadYT();else mountEl();return}
  playing=s.playing;$('pp').textContent=playing?'❚❚':'▶';
- try{if(Math.abs(cur()-s.pos)>1.5){yt?yt.seekTo(s.pos,true):(el.currentTime=s.pos)}
-  if(playing){yt?yt.playVideo():el.play().catch(()=>toast('Ketuk layar untuk memutar'))}else{yt?yt.pauseVideo():el.pause()}}catch(e){}}
+ if(!yt&&!el)return;
+ try{const p=expect(s);if(Math.abs(cur()-p)>1.5){yt?yt.seekTo(p,true):(el.currentTime=p)}
+  if(playing){yt?yt.playVideo():el.play().catch(kick)}else{yt?yt.pauseVideo():el.pause()}}catch(e){}
+ if(playing)setTimeout(kick,2500)}
 setInterval(()=>{const d=dur();if(!dragging&&d)$('seek').value=cur()/d*1000;$('tm').textContent=fmt(cur())+(d?' / '+fmt(d):'')},500);
 setInterval(()=>{if(host===me&&mode==='host'&&playing&&ws.readyState===1)ws.send(JSON.stringify({t:'tick',pos:cur()}))},4000);
+setInterval(()=>{if(sync&&sync.playing&&(yt||el)){kick();try{const p=expect(sync);if(Math.abs(cur()-p)>2.5){yt?yt.seekTo(p,true):(el.currentTime=p)}}catch(e){}}},3000);
 function proposal(m){const p=m.p,b=$('prop');if(!p){b.style.display='none';if(m.ok===false)toast('Usulan ditolak');return}
  b.style.display='flex';const mine=p.by===me;$('pt').textContent=mine?'Menunggu persetujuan untuk '+p.label+'…':p.name+' ingin '+p.label;
  $('yes').style.display=$('no').style.display=mine?'none':'inline-block'}
