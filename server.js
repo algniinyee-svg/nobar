@@ -2,6 +2,8 @@ const http = require('http'), fs = require('fs'), path = require('path'), zlib =
 const { WebSocketServer } = require('ws');
 const MAX = 8, PUB = path.join(__dirname, 'public');
 const MIME = { '.js': 'text/javascript; charset=utf-8', '.html': 'text/html; charset=utf-8', '.json': 'application/json', '.svg': 'image/svg+xml' };
+
+/* ---------- ikon aplikasi (dibuat otomatis) ---------- */
 const crcT = (() => { const t = []; for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1; t[n] = c >>> 0; } return t; })();
 const crc = b => { let c = -1; for (const x of b) c = crcT[(c ^ x) & 255] ^ (c >>> 8); return (~c) >>> 0; };
 const chunk = (t, d) => { const l = Buffer.alloc(4); l.writeUInt32BE(d.length); const td = Buffer.concat([Buffer.from(t), d]); const c = Buffer.alloc(4); c.writeUInt32BE(crc(td)); return Buffer.concat([l, td, c]); };
@@ -16,9 +18,44 @@ function icon(s) {
   return Buffer.concat([Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]), chunk('IHDR', h), chunk('IDAT', zlib.deflateSync(raw)), chunk('IEND', Buffer.alloc(0))]);
 }
 const ICONS = { '/icon-192.png': icon(192), '/icon-512.png': icon(512) };
-const server = http.createServer((req, res) => {
+
+/* ---------- statistik & database ---------- */
+const stats = { since: Date.now(), rooms: 0, joins: 0, installs: 0, peak: 0 };
+let pool = null;
+if (process.env.DATABASE_URL) {
+  try {
+    const { Pool } = require('pg');
+    pool = new Pool({ connectionString: process.env.DATABASE_URL, max: 3 });
+    pool.on('error', () => {});
+    pool.query('CREATE TABLE IF NOT EXISTS events (id BIGSERIAL PRIMARY KEY, ts TIMESTAMPTZ NOT NULL DEFAULT now(), kind TEXT NOT NULL, room TEXT)')
+      .catch(e => console.log('db init failed:', e.message));
+  } catch (e) { console.log('db unavailable:', e.message); pool = null; }
+}
+const logEv = (kind, room) => { if (pool) pool.query('INSERT INTO events(kind, room) VALUES ($1, $2)', [kind, room || null]).catch(() => {}); };
+const adminOK = req => process.env.ADMIN_KEY && req.headers['x-admin-key'] === process.env.ADMIN_KEY;
+const onlineNow = () => [...rooms.values()].reduce((a, r) => a + r.members.length, 0);
+
+/* ---------- http ---------- */
+const server = http.createServer(async (req, res) => {
   let f = req.url.split('?')[0];
   if (ICONS[f]) { res.writeHead(200, { 'Content-Type': 'image/png', 'Cache-Control': 'public,max-age=86400' }); return res.end(ICONS[f]); }
+  if (f === '/api/installed' && req.method === 'POST') { stats.installs++; logEv('install'); res.writeHead(204); return res.end(); }
+  if (f === '/api/stats') {
+    if (!adminOK(req)) { res.writeHead(401); return res.end('Unauthorized'); }
+    res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
+    return res.end(JSON.stringify({ ...stats, now: Date.now(), online: onlineNow(), active: [...rooms.values()].map(r => ({ code: r.code, n: r.members.length, locked: !!r.pw, playing: r.playing, video: r.video ? (r.video.type === 'yt' ? 'YouTube' : 'Link') : '-', queue: r.queue.length })) }));
+  }
+  if (f === '/api/history') {
+    if (!adminOK(req)) { res.writeHead(401); return res.end('Unauthorized'); }
+    res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
+    if (!pool) return res.end(JSON.stringify({ db: false }));
+    try {
+      const t = await pool.query('SELECT kind, count(*)::int AS n FROM events GROUP BY kind');
+      const d = await pool.query("SELECT ((ts AT TIME ZONE 'Asia/Jakarta')::date)::text AS day, kind, count(*)::int AS n FROM events WHERE ts > now() - interval '7 days' GROUP BY 1, 2 ORDER BY 1 DESC");
+      const totals = {}; t.rows.forEach(x => totals[x.kind] = x.n);
+      return res.end(JSON.stringify({ db: true, totals, days: d.rows }));
+    } catch (e) { return res.end(JSON.stringify({ db: false, error: 'query gagal' })); }
+  }
   if (f === '/') f = '/index.html';
   const p = path.join(PUB, path.normalize(f).replace(/^(\.\.[/\\])+/, ''));
   fs.readFile(p, (e, d) => {
@@ -26,6 +63,8 @@ const server = http.createServer((req, res) => {
     res.writeHead(200, { 'Content-Type': MIME[path.extname(p)] || 'application/octet-stream' }); res.end(d);
   });
 });
+
+/* ---------- room realtime ---------- */
 const wss = new WebSocketServer({ server, maxPayload: 65536 });
 const rooms = new Map(); let uid = 0;
 const EMO = ['❤️', '😂', '😮', '👏', '🔥', '😢'];
@@ -54,7 +93,7 @@ function apply(r, a) {
 function validVideo(v) {
   if (!v) return null;
   if (v.type === 'yt' && /^[\w-]{11}$/.test(v.id)) return { type: 'yt', id: v.id };
-  if (v.type === 'url' && /^https?:\/\//i.test(v.url) && v.url.length < 1000) return { type: 'url', url: v.url };
+  if (v.type === 'url' && typeof v.url === 'string' && /^https?:\/\//i.test(v.url) && v.url.length < 1000) return { type: 'url', url: v.url };
   return null;
 }
 wss.on('connection', ws => {
@@ -68,10 +107,14 @@ wss.on('connection', ws => {
       const pw = clean(m.pw, 20);
       let room = rooms.get(code);
       if (room && room.pw && room.pw !== pw) return send(ws, { t: 'deny', msg: 'Password room salah.' });
-      if (!room) { room = { code, members: [], host: null, video: null, playing: false, pos: 0, at: Date.now(), prop: null, queue: [], pw }; rooms.set(code, room); }
+      if (!room) {
+        room = { code, members: [], host: null, video: null, playing: false, pos: 0, at: Date.now(), prop: null, queue: [], pw };
+        rooms.set(code, room); stats.rooms++; logEv('room', code);
+      }
       if (room.members.length >= MAX) return send(ws, { t: 'deny', msg: 'Room penuh (maks 8 orang).' });
       me = { id: ++uid, name: clean(m.name, 16) || 'Tamu', ws }; r = room;
       r.members.push(me); if (!r.host) r.host = me.id;
+      stats.joins++; stats.peak = Math.max(stats.peak, onlineNow()); logEv('join', code);
       send(ws, { t: 'joined', id: me.id, code });
       members(r); if (r.video) send(ws, stateMsg(r));
       if (r.queue.length) send(ws, qmsg(r));
@@ -121,27 +164,3 @@ wss.on('connection', ws => {
 });
 setInterval(() => wss.clients.forEach(w => { if (!w.isAlive) return w.terminate(); w.isAlive = false; w.ping(); }), 20000);
 server.listen(process.env.PORT || 3000, () => console.log('nobar on', process.env.PORT || 3000));
-const stats = { since: Date.now(), rooms: 0, joins: 0, installs: 0, peak: 0 };
-const seenR = new WeakSet();
-const onlineNow = () => [...rooms.values()].reduce((a, r) => a + r.members.length, 0);
-wss.on('connection', ws => ws.on('message', raw => {
-  try {
-    const m = JSON.parse(raw); if (m.t !== 'join') return;
-    stats.joins++;
-    const room = rooms.get(String(m.room || '').replace(/[<>]/g, '').trim().slice(0, 12).toUpperCase());
-    if (room && !seenR.has(room)) { seenR.add(room); stats.rooms++; }
-    stats.peak = Math.max(stats.peak, onlineNow());
-  } catch {}
-}));
-const origReq = server.listeners('request')[0];
-server.removeAllListeners('request');
-server.on('request', (req, res) => {
-  const f = req.url.split('?')[0];
-  if (f === '/api/installed' && req.method === 'POST') { stats.installs++; res.writeHead(204); return res.end(); }
-  if (f === '/api/stats') {
-    if (!process.env.ADMIN_KEY || req.headers['x-admin-key'] !== process.env.ADMIN_KEY) { res.writeHead(401); return res.end('Unauthorized'); }
-    res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
-    return res.end(JSON.stringify({ ...stats, now: Date.now(), online: onlineNow(), active: [...rooms.values()].map(r => ({ code: r.code, n: r.members.length, locked: !!r.pw, playing: r.playing, video: r.video ? (r.video.type === 'yt' ? 'YouTube' : 'Link') : '-', queue: r.queue.length })) }));
-  }
-  origReq(req, res);
-});
