@@ -36,7 +36,7 @@ function tile(id){let t=$('t'+id);if(!t){t=document.createElement('div');t.id='t
  const n=names.get(id)||'?';t.querySelector('i').textContent=id===me?'Kamu':n;t.dataset.i=(n[0]||'?').toUpperCase();showTiles();return t}
 const sig=(to,data)=>{try{ws&&ws.readyState===1&&ws.send(JSON.stringify({t:'sig',to,data}))}catch(e){}};
 function setSpk(id,on){if(on===spk.has(id))return;on?spk.add(id):spk.delete(id);
- const t=$('t'+id);if(t)t.classList.toggle('spk',on);const r=document.querySelector('.pr[data-id="'+id+'"]');if(r)r.classList.toggle('spk',on)}
+  const t=$('t'+id);if(t)t.classList.toggle('spk',on);document.querySelectorAll('.pr[data-id="'+id+'"],.seat[data-id="'+id+'"]').forEach(e=>e.classList.toggle('spk',on))}
 function watch(s,id){try{ctx=ctx||new(window.AudioContext||window.webkitAudioContext)();const a=ctx.createAnalyser();a.fftSize=256;ctx.createMediaStreamSource(s).connect(a);
  const buf=new Uint8Array(a.frequencyBinCount);let hold=0;
  return setInterval(()=>{a.getByteFrequencyData(buf);let v=0;for(const x of buf)v+=x;v/=buf.length;if(v>14)hold=3;else if(hold)hold--;setSpk(id,hold>0)},150)}catch(e){}}
