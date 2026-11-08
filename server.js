@@ -1,7 +1,7 @@
 const http = require('http'), fs = require('fs'), path = require('path'), zlib = require('zlib'), crypto = require('crypto'), util = require('util');
 const { WebSocketServer } = require('ws');
 const MAX = 8, PUB = path.join(__dirname, 'public');
-const MIME = { '.js': 'text/javascript; charset=utf-8', '.html': 'text/html; charset=utf-8', '.json': 'application/json', '.svg': 'image/svg+xml' };
+const MIME = { '.js': 'text/javascript; charset=utf-8', '.html': 'text/html; charset=utf-8', '.json': 'application/json', '.svg': 'image/svg+xml', '.apk': 'application/vnd.android.package-archive' };
 
 /* ---------- ikon aplikasi ---------- */
 const crcT = (() => { const t = []; for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1; t[n] = c >>> 0; } return t; })();
@@ -307,7 +307,7 @@ wss.on('connection', ws => {
       stats.joins++; stats.peak = Math.max(stats.peak, onlineNow()); logEv('join', code);
       send(ws, { t: 'joined', id: me.id, code, pw: room.pw || '' });
       members(r); if (r.video) send(ws, stateMsg(r));
-      if (r.queue.length) send(ws, qmsg(r));
+      send(ws, qmsg(r));
       if (r.chat.length) send(ws, { t: 'history', list: r.chat });
       if (r.prop) send(ws, { t: 'proposal', p: r.prop.pub });
       if (r.host === me.id && r.pending.size) askHost(r);
@@ -398,7 +398,7 @@ wss.on('connection', ws => {
     members(r);
   });
 });
-setInterval(() => wss.clients.forEach(w => { if (!w.isAlive) return w.terminate(); w.isAlive = false; w.ping(); }), 20000);
+setInterval(() => wss.clients.forEach(w => { if (w.isAlive) w.miss = 0; else { w.miss = (w.miss || 0) + 1; if (w.miss >= 3) return w.terminate(); } w.isAlive = false; w.ping(); }), 20000);
 server.listen(process.env.PORT || 3000, () => console.log('nobar on', process.env.PORT || 3000));
 require('./wallpaper.js')(server, () => pool, verify, bearer, ipOf, limited);
 require('./turn.js')(server, () => pool, verify, bearer);
