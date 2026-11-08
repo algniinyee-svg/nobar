@@ -46,7 +46,9 @@ async function route(p){try{const s=await p.pc.getStats();let pid=null;
  s.forEach(r=>{if(r.type==='transport'&&r.selectedCandidatePairId)pid=r.selectedCandidatePairId});
  if(!pid)s.forEach(r=>{if(r.type==='candidate-pair'&&r.nominated&&r.state==='succeeded')pid=r.id});
  const cp=pid&&s.get(pid);if(cp){const l=s.get(cp.localCandidateId),rm=s.get(cp.remoteCandidateId);
-  p.route=(l&&l.candidateType==='relay')||(rm&&rm.candidateType==='relay')?'relay':'direct'}}catch(e){}render()}
+    p.route=(l&&l.candidateType==='relay')||(rm&&rm.candidateType==='relay')?'relay':'direct';if(p.route==='relay')capRelay(p)}}catch(e){}render()}
+function capRelay(p){p.pc._relay=true;try{p.pc.getTransceivers().forEach(t=>{const s=t.sender,k=t.receiver.track.kind,pr=s.getParameters();if(!pr.encodings||!pr.encodings.length)pr.encodings=[{}];
+ if(k==='video'){pr.encodings[0].maxBitrate=60000;pr.encodings[0].maxFramerate=8;pr.encodings[0].scaleResolutionDownBy=2}else pr.encodings[0].maxBitrate=24000;s.setParameters(pr).catch(()=>{})})}catch(e){}}
 function mk(id){
  const pc=new RTCPeerConnection(ICE),p={pc,polite:me>id,making:false,ignore:false,as:new MediaStream(),vs:new MediaStream(),cam:false,st:'new',route:''};peers.set(id,p);
  pc.onicecandidate=e=>e.candidate&&sig(id,{c:e.candidate});
