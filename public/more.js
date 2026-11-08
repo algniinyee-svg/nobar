@@ -57,7 +57,7 @@ if(g0)md.getUserMedia=function(c){const q=Q[cfg.q];
  if(c&&c.video&&typeof c.video==='object')c=Object.assign({},c,{video:Object.assign({},c.video,{width:{ideal:q.w},height:{ideal:q.h},frameRate:{ideal:q.f,max:q.f+5}})});
  return g0.call(md,c)};
 function applyNow(){const q=Q[cfg.q];
- pcs.forEach(p=>{try{p.getSenders().forEach(s=>{if(!s.track)return;const k=s.track.kind;
+ pcs.forEach(p=>{if(p._relay)return;try{p.getSenders().forEach(s=>{if(!s.track)return;const k=s.track.kind;
   try{const pr=s.getParameters();if(!pr.encodings||!pr.encodings.length)pr.encodings=[{}];pr.encodings[0].maxBitrate=k==='video'?q.vb:q.ab;s.setParameters(pr).catch(()=>{})}catch(e){}
   if(k==='video')s.track.applyConstraints({width:{ideal:q.w},height:{ideal:q.h},frameRate:{ideal:q.f,max:q.f+5}}).catch(()=>{})})}catch(e){}})}
 setInterval(()=>{if(pcs.size)applyNow()},6000);
