@@ -31,11 +31,42 @@ if (process.env.DATABASE_URL) {
     pool.query('CREATE TABLE IF NOT EXISTS accounts (id BIGSERIAL PRIMARY KEY, username TEXT NOT NULL, lname TEXT UNIQUE NOT NULL, salt TEXT NOT NULL, hash TEXT NOT NULL, created TIMESTAMPTZ NOT NULL DEFAULT now())')
       .then(() => pool.query('ALTER TABLE accounts ADD COLUMN IF NOT EXISTS rsalt TEXT, ADD COLUMN IF NOT EXISTS rhash TEXT'))
       .catch(e => console.log('db init failed:', e.message));
+    pool.query('CREATE TABLE IF NOT EXISTS push_subs (endpoint TEXT PRIMARY KEY, lname TEXT NOT NULL, sub TEXT NOT NULL, created TIMESTAMPTZ NOT NULL DEFAULT now())').catch(e => console.log('db init failed:', e.message));
   } catch (e) { console.log('db unavailable:', e.message); pool = null; }
 }
 const logEv = (kind, room) => { if (pool) pool.query('INSERT INTO events(kind, room) VALUES ($1, $2)', [kind, room || null]).catch(() => {}); };
 const adminOK = req => process.env.ADMIN_KEY && req.headers['x-admin-key'] === process.env.ADMIN_KEY;
 const onlineNow = () => [...rooms.values()].reduce((a, r) => a + r.members.length, 0);
+
+/* ---------- web push ---------- */
+const VAPID_PUB = process.env.VAPID_PUBLIC, VAPID_PRIV = process.env.VAPID_PRIVATE;
+let webpush = null;
+if (pool && VAPID_PUB && VAPID_PRIV) {
+  try { webpush = require('web-push'); webpush.setVapidDetails('https://nobar-d2bd.roarai.app', VAPID_PUB, VAPID_PRIV); }
+  catch (e) { console.log('push unavailable:', e.message); webpush = null; }
+}
+async function pushUser(lname, payload) {
+  if (!webpush || !pool) return;
+  try {
+    const r = await pool.query('SELECT endpoint, sub FROM push_subs WHERE lname = $1', [lname]);
+    for (const row of r.rows) {
+      webpush.sendNotification(JSON.parse(row.sub), JSON.stringify(payload), { TTL: 120, urgency: 'high' }).catch(err => {
+        if (err && (err.statusCode === 404 || err.statusCode === 410)) pool.query('DELETE FROM push_subs WHERE endpoint = $1', [row.endpoint]).catch(() => {});
+      });
+    }
+  } catch {}
+}
+function pushHidden(r, exceptId, payload, onlyId) {
+  if (!webpush) return;
+  const now = Date.now();
+  r.members.forEach(c => {
+    if (c.id === exceptId || (onlyId && c.id !== onlyId) || !c.hidden) return;
+    c.pt = c.pt || {};
+    if (now - (c.pt[payload.tag] || 0) < 8000) return;
+    c.pt[payload.tag] = now;
+    pushUser(c.user.toLowerCase(), Object.assign({ url: '/#' + r.code }, payload));
+  });
+}
 
 /* ---------- akun ---------- */
 const SECRET = crypto.createHash('sha256').update('nobar|' + (process.env.SESSION_SECRET || process.env.DATABASE_URL || '')).digest();
@@ -58,7 +89,7 @@ async function issueRecovery(id) {
   await pool.query('UPDATE accounts SET rsalt=$1, rhash=$2 WHERE id=$3', [rs, rh, id]);
   return code;
 }
-const readJson = req => new Promise(ok => { let s = ''; req.on('data', c => { s += c; if (s.length > 2048) req.destroy(); }); req.on('end', () => { try { ok(JSON.parse(s)); } catch { ok(null); } }); req.on('error', () => ok(null)); });
+const readJson = req => new Promise(ok => { let s = ''; req.on('data', c => { s += c; if (s.length > 4096) req.destroy(); }); req.on('end', () => { try { ok(JSON.parse(s)); } catch { ok(null); } }); req.on('error', () => ok(null)); });
 const tries = new Map();
 const limited = ip => { const n = Date.now(), a = (tries.get(ip) || []).filter(t => n - t < 600000); a.push(n); tries.set(ip, a); return a.length > 15; };
 setInterval(() => tries.clear(), 3600000);
@@ -72,6 +103,20 @@ const server = http.createServer(async (req, res) => {
   if (ICONS[f]) { res.writeHead(200, { 'Content-Type': 'image/png', 'Cache-Control': 'public,max-age=86400' }); return res.end(ICONS[f]); }
   if (f === '/api/installed' && req.method === 'POST') { stats.installs++; logEv('install'); res.writeHead(204); return res.end(); }
   if (f === '/api/me') { const p = verify(bearer(req)); return J(200, { accounts: !!pool, user: p ? p.u : null }); }
+  if (f === '/api/vapid') return J(200, { key: webpush ? VAPID_PUB : null });
+  if (f === '/api/push/sub' && req.method === 'POST') {
+    const p = verify(bearer(req)); if (!p || !pool) return J(401, { error: 'Login dulu.' });
+    const b = await readJson(req), s = b && b.sub;
+    if (!s || typeof s.endpoint !== 'string' || !/^https:\/\//.test(s.endpoint) || !s.keys) return J(400, { error: 'Data tidak valid.' });
+    try { await pool.query('INSERT INTO push_subs(endpoint, lname, sub) VALUES ($1,$2,$3) ON CONFLICT (endpoint) DO UPDATE SET lname = $2, sub = $3', [s.endpoint, p.u.toLowerCase(), JSON.stringify(s)]); return J(200, { ok: true }); }
+    catch (e) { return J(500, { error: 'Server error.' }); }
+  }
+  if (f === '/api/push/unsub' && req.method === 'POST') {
+    const p = verify(bearer(req)); if (!p || !pool) return J(401, { error: 'Login dulu.' });
+    const b = await readJson(req);
+    try { if (b && typeof b.endpoint === 'string') await pool.query('DELETE FROM push_subs WHERE endpoint = $1 AND lname = $2', [b.endpoint, p.u.toLowerCase()]); return J(200, { ok: true }); }
+    catch (e) { return J(500, { error: 'Server error.' }); }
+  }
   if ((f === '/api/register' || f === '/api/login') && req.method === 'POST') {
     if (!pool) return J(503, { error: 'Akun belum aktif di server ini.' });
     if (limited(ipOf(req))) return J(429, { error: 'Terlalu banyak percobaan. Coba lagi nanti.' });
@@ -119,6 +164,28 @@ const server = http.createServer(async (req, res) => {
       return J(200, { token: sign({ id: a.id, u: a.username, exp: Date.now() + 30 * 864e5 }), user: a.username, recovery });
     } catch (e) { return J(500, { error: 'Server error.' }); }
   }
+  if (f === '/api/admin/accounts') {
+    if (!adminOK(req)) { res.writeHead(401); return res.end('Unauthorized'); }
+    if (!pool) return J(200, { accounts: [] });
+    try {
+      const q = (new URL(req.url, 'http://x').searchParams.get('q') || '').toLowerCase().replace(/[%_\\]/g, '');
+      const r = await pool.query('SELECT username, created, (rhash IS NOT NULL) AS rec FROM accounts WHERE lname LIKE $1 ORDER BY created DESC LIMIT 200', [q + '%']);
+      return J(200, { accounts: r.rows });
+    } catch (e) { return J(500, { error: 'query gagal' }); }
+  }
+  if (f === '/api/admin/reset' && req.method === 'POST') {
+    if (!adminOK(req)) { res.writeHead(401); return res.end('Unauthorized'); }
+    if (!pool) return J(503, { error: 'Database belum aktif' });
+    const b = await readJson(req), u = String((b && b.username) || '').trim().toLowerCase();
+    if (!u) return J(400, { error: 'Username kosong' });
+    try {
+      const temp = newCode().replace(/-/g, '').slice(0, 10), salt = crypto.randomBytes(16).toString('hex'), h = await hashPw(temp, salt);
+      const r = await pool.query('UPDATE accounts SET salt=$1, hash=$2 WHERE lname=$3 RETURNING username', [salt, h, u]);
+      if (!r.rows.length) return J(404, { error: 'Akun tidak ditemukan' });
+      logEv('adminreset');
+      return J(200, { user: r.rows[0].username, temp });
+    } catch (e) { return J(500, { error: 'Server error' }); }
+  }
   if (f === '/api/stats') {
     if (!adminOK(req)) { res.writeHead(401); return res.end('Unauthorized'); }
     return J(200, { ...stats, now: Date.now(), online: onlineNow(), active: [...rooms.values()].map(r => ({ code: r.code, n: r.members.length, locked: !!r.pw, playing: r.playing, video: r.video ? (r.video.type === 'yt' ? 'YouTube' : 'Link') : '-', queue: r.queue.length })) });
@@ -157,7 +224,10 @@ function members(r) {
 function askHost(r) {
   bcast(r, { t: 'joinreq_clear' });
   const h = r.members.find(c => c.id === r.host); if (!h) return;
-  r.pending.forEach(p => send(h.ws, { t: 'joinreq', id: p.id, name: p.user }));
+  r.pending.forEach(p => {
+    send(h.ws, { t: 'joinreq', id: p.id, name: p.user });
+    pushHidden(r, 0, { title: 'Permintaan masuk', body: p.user + ' ingin masuk lagi', tag: 'jr' }, r.host);
+  });
 }
 function apply(r, a) {
   let qb = false;
@@ -207,7 +277,7 @@ wss.on('connection', ws => {
       const dup = pool ? room.members.find(c => c.user === user) : null;
       if (dup) { room.members = room.members.filter(c => c !== dup); if (room.host === dup.id) room.host = null; send(dup.ws, { t: 'replaced' }); dup.ws.close(); }
       if (room.members.length >= MAX) return send(ws, { t: 'deny', msg: 'Room penuh (maks 8 orang).' });
-      me = { id: ++uid, name: user, user, ws }; r = room;
+      me = { id: ++uid, name: user, user, ws, hidden: false }; r = room;
       r.members.push(me); if (!r.host) r.host = me.id;
       stats.joins++; stats.peak = Math.max(stats.peak, onlineNow()); logEv('join', code);
       send(ws, { t: 'joined', id: me.id, code, pw: room.pw || '' });
@@ -216,12 +286,33 @@ wss.on('connection', ws => {
       if (r.chat.length) send(ws, { t: 'history', list: r.chat });
       if (r.prop) send(ws, { t: 'proposal', p: r.prop.pub });
       if (r.host === me.id && r.pending.size) askHost(r);
+      pushHidden(r, me.id, { title: 'Nobar', body: '👋 ' + user + ' bergabung', tag: 'join' });
       return;
     }
     if (!r) return;
+    if (m.t === 'vis') { me.hidden = !!m.h; return; }
     if (m.t === 'chat') {
       const x = clean(m.text, 300);
-      if (x) { r.chat.push({ from: me.name, text: x }); if (r.chat.length > 50) r.chat.shift(); bcast(r, { t: 'chat', from: me.name, id: me.id, text: x }); }
+      if (x) {
+        r.chat.push({ from: me.name, text: x }); if (r.chat.length > 50) r.chat.shift();
+        bcast(r, { t: 'chat', from: me.name, id: me.id, text: x });
+        pushHidden(r, me.id, { title: '💬 ' + me.name, body: x.slice(0, 100), tag: 'chat' });
+      }
+      return;
+    }
+    if (m.t === 'invite') {
+      if (!pool || !webpush) return send(ws, { t: 'info', msg: 'Undangan belum aktif di server.' });
+      const to = clean(m.to, 16).toLowerCase(); if (!to) return;
+      if (Date.now() - (me.inv || 0) < 5000) return send(ws, { t: 'info', msg: 'Tunggu sebentar sebelum mengundang lagi.' });
+      me.inv = Date.now();
+      pool.query('SELECT 1 FROM accounts WHERE lname = $1', [to]).then(a => {
+        if (!a.rows.length) return send(ws, { t: 'info', msg: 'Username tidak ditemukan.' });
+        return pool.query('SELECT 1 FROM push_subs WHERE lname = $1 LIMIT 1', [to]).then(s => {
+          if (!s.rows.length) return send(ws, { t: 'info', msg: 'Dia belum mengaktifkan notifikasi push.' });
+          pushUser(to, { title: '📨 Undangan Nobar', body: me.name + ' mengajakmu ke room ' + r.code + (r.pw ? ' · password: ' + r.pw : ''), tag: 'inv', url: '/#' + r.code });
+          send(ws, { t: 'info', msg: 'Undangan terkirim ke ' + to });
+        });
+      }).catch(() => {});
       return;
     }
     if (m.t === 'sig') { const to = r.members.find(c => c.id === m.to); if (to && m.data) send(to.ws, { t: 'sig', from: me.id, data: m.data }); return; }
@@ -262,7 +353,9 @@ wss.on('connection', ws => {
       if (r.prop) return send(ws, { t: 'err', msg: 'Masih ada usulan yang menunggu.' });
       const label = { load: 'ganti video', play: 'putar', pause: 'jeda', seek: 'geser video' }[a.k]; if (!label) return;
       r.prop = { by: me.id, a, pub: { by: me.id, name: me.name, label } };
-      bcast(r, { t: 'proposal', p: r.prop.pub }); return;
+      bcast(r, { t: 'proposal', p: r.prop.pub });
+      pushHidden(r, me.id, { title: 'Usulan dari ' + me.name, body: 'ingin ' + label, tag: 'prop' });
+      return;
     }
     if (m.t === 'vote' && r.prop && r.prop.by !== me.id) {
       const p = r.prop; r.prop = null;
