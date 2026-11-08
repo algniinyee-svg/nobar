@@ -31,7 +31,7 @@ if (process.env.DATABASE_URL) {
     pool.query('CREATE TABLE IF NOT EXISTS accounts (id BIGSERIAL PRIMARY KEY, username TEXT NOT NULL, lname TEXT UNIQUE NOT NULL, salt TEXT NOT NULL, hash TEXT NOT NULL, created TIMESTAMPTZ NOT NULL DEFAULT now())')
       .then(() => pool.query('ALTER TABLE accounts ADD COLUMN IF NOT EXISTS rsalt TEXT, ADD COLUMN IF NOT EXISTS rhash TEXT'))
       .catch(e => console.log('db init failed:', e.message));
-    pool.query('CREATE TABLE IF NOT EXISTS push_subs (endpoint TEXT PRIMARY KEY, lname TEXT NOT NULL, sub TEXT NOT NULL, created TIMESTAMPTZ NOT NULL DEFAULT now())').catch(e => console.log('db init failed:', e.message));
+    pool.query('CREATE TABLE IF NOT EXISTS push_dev (endpoint TEXT NOT NULL, lname TEXT NOT NULL, sub TEXT NOT NULL, created TIMESTAMPTZ NOT NULL DEFAULT now(), PRIMARY KEY (endpoint, lname))').catch(e => console.log('db init failed:', e.message));
   } catch (e) { console.log('db unavailable:', e.message); pool = null; }
 }
 const logEv = (kind, room) => { if (pool) pool.query('INSERT INTO events(kind, room) VALUES ($1, $2)', [kind, room || null]).catch(() => {}); };
@@ -48,13 +48,29 @@ if (pool && VAPID_PUB && VAPID_PRIV) {
 async function pushUser(lname, payload) {
   if (!webpush || !pool) return;
   try {
-    const r = await pool.query('SELECT endpoint, sub FROM push_subs WHERE lname = $1', [lname]);
+    const r = await pool.query('SELECT endpoint, sub FROM push_dev WHERE lname = $1', [lname]);
     for (const row of r.rows) {
       webpush.sendNotification(JSON.parse(row.sub), JSON.stringify(payload), { TTL: 120, urgency: 'high' }).catch(err => {
-        if (err && (err.statusCode === 404 || err.statusCode === 410)) pool.query('DELETE FROM push_subs WHERE endpoint = $1', [row.endpoint]).catch(() => {});
+        console.log('push gagal:', err && (err.statusCode || err.message));
+        if (err && (err.statusCode === 404 || err.statusCode === 410)) pool.query('DELETE FROM push_dev WHERE endpoint = $1', [row.endpoint]).catch(() => {});
       });
     }
-  } catch {}
+  } catch (e) { console.log('push error:', e.message); }
+}
+async function pushTest(lname) {
+  if (!webpush || !pool) return { devices: 0, ok: 0, errors: ['push belum aktif di server'] };
+  const r = await pool.query('SELECT endpoint, sub FROM push_dev WHERE lname = $1', [lname]);
+  const out = { devices: r.rows.length, ok: 0, errors: [] };
+  for (const row of r.rows) {
+    try {
+      await webpush.sendNotification(JSON.parse(row.sub), JSON.stringify({ title: '🔔 Tes Nobar', body: 'Notifikasi push berfungsi!', tag: 'test', url: '/' }), { TTL: 60, urgency: 'high' });
+      out.ok++;
+    } catch (err) {
+      out.errors.push(String((err && (err.statusCode || err.message)) || 'error'));
+      if (err && (err.statusCode === 404 || err.statusCode === 410)) pool.query('DELETE FROM push_dev WHERE endpoint = $1', [row.endpoint]).catch(() => {});
+    }
+  }
+  return out;
 }
 function pushHidden(r, exceptId, payload, onlyId) {
   if (!webpush) return;
@@ -108,14 +124,23 @@ const server = http.createServer(async (req, res) => {
     const p = verify(bearer(req)); if (!p || !pool) return J(401, { error: 'Login dulu.' });
     const b = await readJson(req), s = b && b.sub;
     if (!s || typeof s.endpoint !== 'string' || !/^https:\/\//.test(s.endpoint) || !s.keys) return J(400, { error: 'Data tidak valid.' });
-    try { await pool.query('INSERT INTO push_subs(endpoint, lname, sub) VALUES ($1,$2,$3) ON CONFLICT (endpoint) DO UPDATE SET lname = $2, sub = $3', [s.endpoint, p.u.toLowerCase(), JSON.stringify(s)]); return J(200, { ok: true }); }
-    catch (e) { return J(500, { error: 'Server error.' }); }
+    const ln = p.u.toLowerCase();
+    try {
+      await pool.query('INSERT INTO push_dev(endpoint, lname, sub) VALUES ($1,$2,$3) ON CONFLICT (endpoint, lname) DO UPDATE SET sub = $3', [s.endpoint, ln, JSON.stringify(s)]);
+      await pool.query('DELETE FROM push_dev WHERE lname = $1 AND endpoint NOT IN (SELECT endpoint FROM push_dev WHERE lname = $1 ORDER BY created DESC LIMIT 5)', [ln]);
+      return J(200, { ok: true });
+    } catch (e) { return J(500, { error: 'Server error.' }); }
   }
   if (f === '/api/push/unsub' && req.method === 'POST') {
     const p = verify(bearer(req)); if (!p || !pool) return J(401, { error: 'Login dulu.' });
     const b = await readJson(req);
-    try { if (b && typeof b.endpoint === 'string') await pool.query('DELETE FROM push_subs WHERE endpoint = $1 AND lname = $2', [b.endpoint, p.u.toLowerCase()]); return J(200, { ok: true }); }
+    try { if (b && typeof b.endpoint === 'string') await pool.query('DELETE FROM push_dev WHERE endpoint = $1 AND lname = $2', [b.endpoint, p.u.toLowerCase()]); return J(200, { ok: true }); }
     catch (e) { return J(500, { error: 'Server error.' }); }
+  }
+  if (f === '/api/push/test' && req.method === 'POST') {
+    const p = verify(bearer(req)); if (!p || !pool) return J(401, { error: 'Login dulu.' });
+    if (limited('t' + ipOf(req))) return J(429, { error: 'Terlalu banyak percobaan.' });
+    try { return J(200, await pushTest(p.u.toLowerCase())); } catch (e) { return J(500, { error: 'Server error.' }); }
   }
   if ((f === '/api/register' || f === '/api/login') && req.method === 'POST') {
     if (!pool) return J(503, { error: 'Akun belum aktif di server ini.' });
@@ -307,7 +332,7 @@ wss.on('connection', ws => {
       me.inv = Date.now();
       pool.query('SELECT 1 FROM accounts WHERE lname = $1', [to]).then(a => {
         if (!a.rows.length) return send(ws, { t: 'info', msg: 'Username tidak ditemukan.' });
-        return pool.query('SELECT 1 FROM push_subs WHERE lname = $1 LIMIT 1', [to]).then(s => {
+        return pool.query('SELECT 1 FROM push_dev WHERE lname = $1 LIMIT 1', [to]).then(s => {
           if (!s.rows.length) return send(ws, { t: 'info', msg: 'Dia belum mengaktifkan notifikasi push.' });
           pushUser(to, { title: '📨 Undangan Nobar', body: me.name + ' mengajakmu ke room ' + r.code + (r.pw ? ' · password: ' + r.pw : ''), tag: 'inv', url: '/#' + r.code });
           send(ws, { t: 'info', msg: 'Undangan terkirim ke ' + to });
