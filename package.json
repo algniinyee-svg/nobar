@@ -1,1 +1,1 @@
-{"name":"nobar","version":"1.0.0","private":true,"main":"server.js","scripts":{"start":"node server.js"},"engines":{"node":">=18"},"dependencies":{"ws":"^8.18.0","pg":"^8.13.0"}}
+{"name":"nobar","version":"1.0.0","private":true,"main":"server.js","scripts":{"start":"node server.js"},"engines":{"node":">=18"},"dependencies":{"ws":"^8.18.0","pg":"^8.13.0","web-push":"^3.6.7"}}
