@@ -14,11 +14,13 @@ const st=document.createElement('style');st.textContent=`
 .code{font:700 22px/1.2 ui-monospace,monospace;letter-spacing:2px;text-align:center;padding:14px;border-radius:18px;background:rgba(255,255,255,.12);user-select:all}
 .qrow{display:flex;gap:6px}.qrow button{flex:1;padding:9px 4px}`;
 document.head.appendChild(st);
-const copy=(t,m)=>{(navigator.clipboard?navigator.clipboard.writeText(t):Promise.reject()).then(()=>toast(m),()=>prompt('Salin:',t))};
+const copy=(t,m,btn)=>{const ok=()=>{toast(m);if(btn){const o=btn.textContent;btn.textContent='✓ Tersalin';setTimeout(()=>btn.textContent=o,1500)}};
+ const fb=()=>{try{const a=document.createElement('textarea');a.value=t;a.setAttribute('readonly','');a.style.cssText='position:fixed;top:0;left:0;opacity:0;font-size:16px';document.body.appendChild(a);a.focus();a.select();a.setSelectionRange(0,t.length);const r=document.execCommand('copy');a.remove();if(r)ok();else toast('Gagal menyalin. Tahan teks kode lalu pilih Salin')}catch(e){toast('Gagal menyalin. Tahan teks kode lalu pilih Salin')}};
+ if(navigator.clipboard&&navigator.clipboard.writeText){let d=false;const tm=setTimeout(()=>{if(!d){d=true;fb()}},800);navigator.clipboard.writeText(t).then(()=>{if(!d){d=true;clearTimeout(tm);ok()}},()=>{if(!d){d=true;clearTimeout(tm);fb()}})}else fb()};
 function modal(build){const o=mk('div',0,'ov'),g=mk('div',0,'glass sp');o.appendChild(g);const close=()=>o.remove();build(g,close);o.onclick=e=>{if(e.target===o)close()};document.body.appendChild(o)}
 function showCode(code,title){modal((g,close)=>{
  g.append(mk('b',title),mk('p','Simpan kode ini baik-baik. Hanya tampil sekali dan dipakai untuk reset password kalau kamu lupa.','badge'),mk('div',code,'code'));
- const cp=mk('button','Salin');cp.onclick=()=>copy(code,'Kode disalin');
+ const cp=mk('button','Salin');cp.onclick=()=>copy(code,'Kode disalin',cp);
  const ok=mk('button','Sudah saya simpan','pri');ok.onclick=close;g.append(cp,ok)})}
 /* ---------- akun: lupa password ---------- */
 const F=window.fetch;
@@ -81,9 +83,9 @@ function openSettings(){modal((g,close)=>{
  const r1=mk('div',0,'sr');r1.append(mk('span','Kode: '+code));
  const r2=mk('div',0,'sr'),pv=mk('span',roomPw?'Password: ••••••':'Tanpa password');r2.append(pv);
  if(roomPw){let sh=false;const t=mk('button','👁'),c=mk('button','Salin');
-  t.onclick=()=>{sh=!sh;pv.textContent='Password: '+(sh?roomPw:'••••••')};c.onclick=()=>copy(roomPw,'Password disalin');r2.append(t,c)}
+  t.onclick=()=>{sh=!sh;pv.textContent='Password: '+(sh?roomPw:'••••••')};c.onclick=()=>copy(roomPw,'Password disalin',c);r2.append(t,c)}
  const inv=mk('button','Salin undangan','pri');
- inv.onclick=()=>copy('Gabung Nobar!\n'+location.origin+'/#'+code+'\nKode room: '+code+(roomPw?'\nPassword: '+roomPw:''),'Undangan disalin');
+ inv.onclick=()=>copy('Gabung Nobar!\n'+location.origin+'/#'+code+'\nKode room: '+code+(roomPw?'\nPassword: '+roomPw:''),'Undangan disalin', inv);
  g.append(r1,r2,inv,mk('h4','Kualitas suara & video'));
  const qr=mk('div',0,'qrow'),qb={};
  const mark=()=>Object.keys(qb).forEach(k=>qb[k].className=k===cfg.q?'pri':'');
