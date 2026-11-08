@@ -77,7 +77,10 @@ module.exports = ({ server, wss, rooms, send, bcast, apply, getPool, verify, bea
       if (m.t === 'cdstart') {
         if (!canCtl(r, me)) return send(ws, { t: 'err', msg: 'Hanya host yang bisa memulai hitung mundur.' });
         if (!r.video) return send(ws, { t: 'err', msg: 'Belum ada video.' });
-        countdown(r); return;
+        if (r.cd) return;
+        if (r.playing) return send(ws, { t: 'err', msg: 'Jeda video dulu untuk memakai hitung mundur.' });
+        if (Date.now() - (r.cdAt || 0) < 15000) return send(ws, { t: 'err', msg: 'Tunggu beberapa detik sebelum hitung mundur lagi.' });
+        r.cdAt = Date.now(); countdown(r); return;
       }
       if (m.t === 'pollstart') {
         if (r.poll) return send(ws, { t: 'err', msg: 'Voting masih berlangsung.' });
