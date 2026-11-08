@@ -95,4 +95,5 @@ function extras(g){if(!g)return;const end=g.lastElementChild,add=(...n)=>n.forEa
  ir.append(iu,ib);
  add(pb,tt,ir,sp,mk('p','Push dicatat per akun dan per perangkat. Undangan masuk walau Nobar ditutup. Pesan dan aktivitas room masuk selama Nobar masih berjalan di latar belakang.','badge'))}
 new MutationObserver(ms=>ms.forEach(m=>m.addedNodes.forEach(n=>{if(n.nodeType===1&&n.classList&&n.classList.contains('ov')&&/Pengaturan/.test(n.textContent))extras(n.querySelector('.sp'))}))).observe(document.body,{childList:true});
+window.nbPush={on:pushOn,off:pushOff,isOn,supported};
 })();
