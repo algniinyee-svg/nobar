@@ -401,3 +401,4 @@ wss.on('connection', ws => {
 setInterval(() => wss.clients.forEach(w => { if (!w.isAlive) return w.terminate(); w.isAlive = false; w.ping(); }), 20000);
 server.listen(process.env.PORT || 3000, () => console.log('nobar on', process.env.PORT || 3000));
 require('./wallpaper.js')(server, () => pool, verify, bearer, ipOf, limited);
+require('./turn.js')(server, () => pool, verify, bearer);
