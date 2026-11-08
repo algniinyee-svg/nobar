@@ -63,7 +63,7 @@ function applyNow(){const q=Q[cfg.q];
 setInterval(()=>{if(pcs.size)applyNow()},6000);
 /* ---------- notifikasi ---------- */
 function notify(t,b,tag){
- if(!document.hidden||!cfg.n||!('Notification' in window)||Notification.permission!=='granted')return;
+if(!document.hidden||!cfg.n||LS.g('nb-p')==='1'||!cfg.n||!('Notification' in window)||Notification.permission!=='granted')return;
  const o={body:b,tag:tag||'nobar',renotify:true,icon:'/icon-192.png',badge:'/icon-192.png'};if(cfg.v)o.vibrate=[120,60,120];
  const fb=()=>{try{new Notification(t,{body:b,tag:o.tag})}catch(e){}};
  if(navigator.serviceWorker)navigator.serviceWorker.ready.then(r=>r.showNotification(t,o)).catch(fb);else fb()}
