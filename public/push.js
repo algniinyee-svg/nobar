@@ -32,12 +32,18 @@ function themeRow(){const r=mk('div',0,'thr');
 const tb=mk('button','🎨');tb.id='thbtn';tb.onclick=()=>{const o=mk('div',0,'ov'),g=mk('div',0,'glass sp');
  g.append(mk('b','Tema warna'),themeRow());const c=mk('button','Tutup');c.onclick=()=>o.remove();g.appendChild(c);o.appendChild(g);o.onclick=e=>{if(e.target===o)o.remove()};document.body.appendChild(o)};
 $('join').appendChild(tb);
-/* ---------- push ---------- */
+/* ---------- push (per akun) ---------- */
 const b64=s=>{const p='='.repeat((4-s.length%4)%4),d=atob((s+p).replace(/-/g,'+').replace(/_/g,'/'));return Uint8Array.from([...d].map(c=>c.charCodeAt(0)))};
 const supported=()=>'serviceWorker' in navigator&&'PushManager' in window&&'Notification' in window;
 const wait=ms=>new Promise(r=>setTimeout(r,ms));
 const withTO=(p,ms,msg)=>Promise.race([p,new Promise((_,rj)=>setTimeout(()=>rj(msg),ms))]);
-async function sendSub(sub){const r=await fetch('/api/push/sub',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+TOKEN},body:JSON.stringify({sub:sub.toJSON()})});if(!r.ok)throw'Gagal mendaftarkan push ke server'}
+const hdr=tok=>({'Content-Type':'application/json',Authorization:'Bearer '+tok});
+const uk=()=>'nb-p:'+(USER||'').toLowerCase();
+const isOn=()=>LS.g(uk())==='1';
+const setOn=v=>{LS.s(uk(),v?'1':'0');LS.s('nb-p',v?'1':'0')};
+async function sendSub(sub){const r=await fetch('/api/push/sub',{method:'POST',headers:hdr(TOKEN),body:JSON.stringify({sub:sub.toJSON()})});if(!r.ok)throw'Gagal mendaftarkan push ke server'}
+async function dropFor(tok){try{const reg=await navigator.serviceWorker.ready,sub=await reg.pushManager.getSubscription();
+ if(sub)await fetch('/api/push/unsub',{method:'POST',headers:hdr(tok),body:JSON.stringify({endpoint:sub.endpoint})})}catch(e){}}
 async function getReg(){let reg=await navigator.serviceWorker.getRegistration();if(!reg)reg=await navigator.serviceWorker.register('/sw.js');
  await withTO(navigator.serviceWorker.ready,6000,'Service worker belum siap. Muat ulang halaman lalu coba lagi');return reg}
 async function subscribe(reg,key){
@@ -52,12 +58,15 @@ async function pushOn(){
  const k=(await (await fetch('/api/vapid')).json()).key;if(!k)throw'Push belum aktif di server';
  const reg=await getReg();let sub=await reg.pushManager.getSubscription();
  if(!sub)sub=await subscribe(reg,k);
- await sendSub(sub);LS.s('nb-p','1')}
-async function pushOff(){LS.s('nb-p','0');try{const reg=await navigator.serviceWorker.ready,sub=await reg.pushManager.getSubscription();
- if(sub){await fetch('/api/push/unsub',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+TOKEN},body:JSON.stringify({endpoint:sub.endpoint})});await sub.unsubscribe()}}catch(e){}}
-let synced=false;
-setInterval(async()=>{if(synced||!USER||LS.g('nb-p')!=='1'||!supported()||Notification.permission!=='granted')return;synced=true;
- try{const reg=await navigator.serviceWorker.ready,sub=await reg.pushManager.getSubscription();if(sub)await sendSub(sub);else LS.s('nb-p','0')}catch(e){synced=false}},4000);
+ await sendSub(sub);setOn(true)}
+async function pushOff(){setOn(false);await dropFor(TOKEN)}
+let pu='\u0000',pTok='',synced=false;
+setInterval(()=>{
+ if(USER!==pu){if(pu!=='\u0000'&&pu&&pTok)dropFor(pTok);pu=USER;synced=false;LS.s('nb-p',USER&&isOn()?'1':'0')}
+ if(TOKEN)pTok=TOKEN;
+ if(!synced&&USER&&isOn()&&supported()&&Notification.permission==='granted'){synced=true;
+  (async()=>{try{const reg=await navigator.serviceWorker.ready,sub=await reg.pushManager.getSubscription();if(sub)await sendSub(sub);else setOn(false)}catch(e){synced=false}})()}
+},1000);
 const vis=()=>{try{ws&&ws.readyState===1&&ws.send(JSON.stringify({t:'vis',h:document.hidden}))}catch(e){}};
 document.addEventListener('visibilitychange',vis);
 const OW=window.WebSocket;
@@ -66,17 +75,24 @@ window.WebSocket=function(u,p){const w=new OW(u,p);w.addEventListener('message',
 window.WebSocket.prototype=OW.prototype;
 function extras(g){if(!g)return;const end=g.lastElementChild,add=(...n)=>n.forEach(x=>g.insertBefore(x,end));
  add(mk('h4','Tema warna'),themeRow(),mk('h4','Push & undangan'));
- const pb=mk('button'),sp=mk('p','','badge');sp.id='nbst';const say=t=>{sp.textContent=t};
- const lab=()=>{pb.textContent=!supported()?'Push tidak didukung':LS.g('nb-p')==='1'?'🔔 Push notifikasi: Aktif':'🔕 Push notifikasi: Mati'};
+ const pb=mk('button'),tt=mk('button','🧪 Tes notifikasi'),sp=mk('p','','badge');sp.id='nbst';const say=t=>{sp.textContent=t};
+ const lab=()=>{pb.textContent=!supported()?'Push tidak didukung':isOn()?'🔔 Push notifikasi: Aktif':'🔕 Push notifikasi: Mati'};
  let busy=false;
  pb.onclick=async()=>{if(busy)return;busy=true;pb.disabled=true;say('Memproses…');
-  try{if(LS.g('nb-p')==='1'){await pushOff();say('Push dimatikan.')}else{await pushOn();say('✅ Push aktif. Tes: undang username kamu sendiri, lalu tutup aplikasi.')}}
+  try{if(isOn()){await pushOff();say('Push dimatikan untuk akun ini di perangkat ini.')}else{await pushOn();say('✅ Push aktif. Ketuk "Tes notifikasi" untuk mencoba.')}}
   catch(e){say('⚠️ '+(typeof e==='string'?e:'Gagal mengaktifkan push'))}
   busy=false;pb.disabled=false;lab()};
+ tt.onclick=async()=>{if(!TOKEN)return say('Login dulu');tt.disabled=true;say('Mengirim tes…');
+  try{const r=await fetch('/api/push/test',{method:'POST',headers:hdr(TOKEN)}),j=await r.json();
+   if(!r.ok)say('⚠️ '+(j.error||'Gagal'));
+   else if(!j.devices)say('⚠️ Belum ada perangkat terdaftar untuk akunmu. Nyalakan push dulu.');
+   else if(j.ok)say('✅ Terkirim ke '+j.ok+' dari '+j.devices+' perangkat'+(j.errors.length?' (gagal: '+j.errors.join(', ')+')':'')+'. Notifikasi seharusnya muncul.');
+   else say('⚠️ Gagal terkirim ke '+j.devices+' perangkat (kode: '+j.errors.join(', ')+'). Nyalakan ulang push.')}
+  catch(e){say('⚠️ Tidak bisa terhubung ke server')}tt.disabled=false};
  lab();
  const ir=mk('div');ir.style.cssText='display:flex;gap:8px';const iu=mk('input');iu.placeholder='Username teman';iu.maxLength=16;iu.autocapitalize='none';iu.autocomplete='off';iu.style.cssText='flex:1;min-width:0';
  const ib=mk('button','Undang','pri');ib.onclick=()=>{const u=iu.value.trim();if(!u)return say('Isi username teman');try{ws.send(JSON.stringify({t:'invite',to:u}));say('Mengirim undangan…')}catch(e){say('Tidak terhubung ke server')}iu.value=''};
  ir.append(iu,ib);
- add(pb,ir,sp,mk('p','Push masuk walau Nobar ditutup untuk undangan. Pesan dan aktivitas room masuk selama Nobar masih berjalan di latar belakang. Temanmu harus sudah mengaktifkan push.','badge'))}
+ add(pb,tt,ir,sp,mk('p','Push dicatat per akun dan per perangkat. Undangan masuk walau Nobar ditutup. Pesan dan aktivitas room masuk selama Nobar masih berjalan di latar belakang.','badge'))}
 new MutationObserver(ms=>ms.forEach(m=>m.addedNodes.forEach(n=>{if(n.nodeType===1&&n.classList&&n.classList.contains('ov')&&/Pengaturan/.test(n.textContent))extras(n.querySelector('.sp'))}))).observe(document.body,{childList:true});
 })();
