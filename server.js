@@ -402,3 +402,4 @@ setInterval(() => wss.clients.forEach(w => { if (!w.isAlive) return w.terminate(
 server.listen(process.env.PORT || 3000, () => console.log('nobar on', process.env.PORT || 3000));
 require('./wallpaper.js')(server, () => pool, verify, bearer, ipOf, limited);
 require('./turn.js')(server, () => pool, verify, bearer);
+require('./extras.js')({ server, wss, rooms, send, bcast, apply, getPool: () => pool, verify, bearer, ipOf, limited });
