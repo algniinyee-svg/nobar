@@ -28,7 +28,9 @@ if (process.env.DATABASE_URL) {
     pool = new Pool({ connectionString: process.env.DATABASE_URL, max: 4 });
     pool.on('error', () => {});
     pool.query('CREATE TABLE IF NOT EXISTS events (id BIGSERIAL PRIMARY KEY, ts TIMESTAMPTZ NOT NULL DEFAULT now(), kind TEXT NOT NULL, room TEXT)').catch(e => console.log('db init failed:', e.message));
-    pool.query('CREATE TABLE IF NOT EXISTS accounts (id BIGSERIAL PRIMARY KEY, username TEXT NOT NULL, lname TEXT UNIQUE NOT NULL, salt TEXT NOT NULL, hash TEXT NOT NULL, created TIMESTAMPTZ NOT NULL DEFAULT now())').catch(e => console.log('db init failed:', e.message));
+    pool.query('CREATE TABLE IF NOT EXISTS accounts (id BIGSERIAL PRIMARY KEY, username TEXT NOT NULL, lname TEXT UNIQUE NOT NULL, salt TEXT NOT NULL, hash TEXT NOT NULL, created TIMESTAMPTZ NOT NULL DEFAULT now())')
+      .then(() => pool.query('ALTER TABLE accounts ADD COLUMN IF NOT EXISTS rsalt TEXT, ADD COLUMN IF NOT EXISTS rhash TEXT'))
+      .catch(e => console.log('db init failed:', e.message));
   } catch (e) { console.log('db unavailable:', e.message); pool = null; }
 }
 const logEv = (kind, room) => { if (pool) pool.query('INSERT INTO events(kind, room) VALUES ($1, $2)', [kind, room || null]).catch(() => {}); };
@@ -48,10 +50,20 @@ function verify(tok) {
   if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) return null;
   try { const p = JSON.parse(Buffer.from(body, 'base64url').toString()); return p.exp > Date.now() ? p : null; } catch { return null; }
 }
+const RC = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
+const newCode = () => { const b = crypto.randomBytes(12); let s = ''; for (let i = 0; i < 12; i++) s += RC[b[i] % RC.length]; return s.match(/.{4}/g).join('-'); };
+const normCode = c => String(c || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+async function issueRecovery(id) {
+  const code = newCode(), rs = crypto.randomBytes(16).toString('hex'), rh = await hashPw(normCode(code), rs);
+  await pool.query('UPDATE accounts SET rsalt=$1, rhash=$2 WHERE id=$3', [rs, rh, id]);
+  return code;
+}
 const readJson = req => new Promise(ok => { let s = ''; req.on('data', c => { s += c; if (s.length > 2048) req.destroy(); }); req.on('end', () => { try { ok(JSON.parse(s)); } catch { ok(null); } }); req.on('error', () => ok(null)); });
 const tries = new Map();
 const limited = ip => { const n = Date.now(), a = (tries.get(ip) || []).filter(t => n - t < 600000); a.push(n); tries.set(ip, a); return a.length > 15; };
 setInterval(() => tries.clear(), 3600000);
+const ipOf = req => String(req.headers['x-forwarded-for'] || req.socket.remoteAddress || '').split(',')[0].trim();
+const bearer = req => (req.headers.authorization || '').replace(/^Bearer /, '');
 
 /* ---------- http ---------- */
 const server = http.createServer(async (req, res) => {
@@ -59,14 +71,10 @@ const server = http.createServer(async (req, res) => {
   const J = (c, o) => { res.writeHead(c, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }); res.end(JSON.stringify(o)); };
   if (ICONS[f]) { res.writeHead(200, { 'Content-Type': 'image/png', 'Cache-Control': 'public,max-age=86400' }); return res.end(ICONS[f]); }
   if (f === '/api/installed' && req.method === 'POST') { stats.installs++; logEv('install'); res.writeHead(204); return res.end(); }
-  if (f === '/api/me') {
-    const p = verify((req.headers.authorization || '').replace(/^Bearer /, ''));
-    return J(200, { accounts: !!pool, user: p ? p.u : null });
-  }
+  if (f === '/api/me') { const p = verify(bearer(req)); return J(200, { accounts: !!pool, user: p ? p.u : null }); }
   if ((f === '/api/register' || f === '/api/login') && req.method === 'POST') {
     if (!pool) return J(503, { error: 'Akun belum aktif di server ini.' });
-    const ip = String(req.headers['x-forwarded-for'] || req.socket.remoteAddress || '').split(',')[0].trim();
-    if (limited(ip)) return J(429, { error: 'Terlalu banyak percobaan. Coba lagi nanti.' });
+    if (limited(ipOf(req))) return J(429, { error: 'Terlalu banyak percobaan. Coba lagi nanti.' });
     const b = await readJson(req), u = String((b && b.username) || '').trim(), p = String((b && b.password) || '');
     if (!/^[A-Za-z0-9_.-]{3,16}$/.test(u)) return J(400, { error: 'Username 3-16 karakter: huruf, angka, _ . -' });
     if (p.length < 6 || p.length > 64) return J(400, { error: 'Password 6-64 karakter.' });
@@ -77,13 +85,38 @@ const server = http.createServer(async (req, res) => {
         const r = await pool.query('INSERT INTO accounts(username, lname, salt, hash) VALUES ($1,$2,$3,$4) ON CONFLICT (lname) DO NOTHING RETURNING id', [u, u.toLowerCase(), salt, h]);
         if (!r.rows.length) return J(409, { error: 'Username sudah dipakai.' });
         logEv('signup');
-        return J(200, { token: sign({ id: r.rows[0].id, u, exp }), user: u });
+        const recovery = await issueRecovery(r.rows[0].id);
+        return J(200, { token: sign({ id: r.rows[0].id, u, exp }), user: u, recovery });
       }
       const r = await pool.query('SELECT id, username, salt, hash FROM accounts WHERE lname = $1', [u.toLowerCase()]);
       const a = r.rows[0]; let ok = false;
       if (a) ok = crypto.timingSafeEqual(Buffer.from(await hashPw(p, a.salt)), Buffer.from(a.hash));
       if (!ok) return J(401, { error: 'Username atau password salah.' });
       return J(200, { token: sign({ id: a.id, u: a.username, exp }), user: a.username });
+    } catch (e) { return J(500, { error: 'Server error.' }); }
+  }
+  if (f === '/api/recovery' && req.method === 'POST') {
+    if (!pool) return J(503, { error: 'Akun belum aktif di server ini.' });
+    const p = verify(bearer(req)); if (!p) return J(401, { error: 'Silakan login dulu.' });
+    if (limited('r' + ipOf(req))) return J(429, { error: 'Terlalu banyak percobaan.' });
+    try { return J(200, { recovery: await issueRecovery(p.id) }); } catch (e) { return J(500, { error: 'Server error.' }); }
+  }
+  if (f === '/api/reset' && req.method === 'POST') {
+    if (!pool) return J(503, { error: 'Akun belum aktif di server ini.' });
+    if (limited('r' + ipOf(req))) return J(429, { error: 'Terlalu banyak percobaan. Coba lagi nanti.' });
+    const b = await readJson(req), u = String((b && b.username) || '').trim(), c = normCode(b && b.code), p = String((b && b.password) || '');
+    if (!/^[A-Za-z0-9_.-]{3,16}$/.test(u) || c.length !== 12) return J(400, { error: 'Username atau kode pemulihan tidak valid.' });
+    if (p.length < 6 || p.length > 64) return J(400, { error: 'Password baru 6-64 karakter.' });
+    try {
+      const r = await pool.query('SELECT id, username, rsalt, rhash FROM accounts WHERE lname = $1', [u.toLowerCase()]);
+      const a = r.rows[0]; let ok = false;
+      if (a && a.rhash) ok = crypto.timingSafeEqual(Buffer.from(await hashPw(c, a.rsalt)), Buffer.from(a.rhash));
+      if (!ok) return J(401, { error: 'Username atau kode pemulihan salah.' });
+      const salt = crypto.randomBytes(16).toString('hex'), h = await hashPw(p, salt);
+      await pool.query('UPDATE accounts SET salt=$1, hash=$2 WHERE id=$3', [salt, h, a.id]);
+      const recovery = await issueRecovery(a.id);
+      logEv('reset');
+      return J(200, { token: sign({ id: a.id, u: a.username, exp: Date.now() + 30 * 864e5 }), user: a.username, recovery });
     } catch (e) { return J(500, { error: 'Server error.' }); }
   }
   if (f === '/api/stats') {
@@ -177,7 +210,7 @@ wss.on('connection', ws => {
       me = { id: ++uid, name: user, user, ws }; r = room;
       r.members.push(me); if (!r.host) r.host = me.id;
       stats.joins++; stats.peak = Math.max(stats.peak, onlineNow()); logEv('join', code);
-      send(ws, { t: 'joined', id: me.id, code });
+      send(ws, { t: 'joined', id: me.id, code, pw: room.pw || '' });
       members(r); if (r.video) send(ws, stateMsg(r));
       if (r.queue.length) send(ws, qmsg(r));
       if (r.chat.length) send(ws, { t: 'history', list: r.chat });
