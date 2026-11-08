@@ -2,7 +2,6 @@
 const $=id=>document.getElementById(id);
 const mk=(t,x,c)=>{const e=document.createElement(t);if(x)e.textContent=x;if(c)e.className=c;return e};
 const LS={g:k=>{try{return localStorage.getItem(k)}catch(e){return null}},s:(k,v)=>{try{localStorage.setItem(k,v)}catch(e){}}};
-/* ---------- tema warna ---------- */
 const TH={
  aurora:{n:'Aurora',g:['#4f6bff','#00d4b4cc','#c13bffcc','#ff7a59aa'],b:'#0b1020',a:'#7fd6ff'},
  sunset:{n:'Sunset',g:['#ff6a3d','#ffb347cc','#d6336ccc','#ff8fa3aa'],b:'#1a0d12',a:'#ffb38a'},
@@ -11,6 +10,7 @@ const TH={
  berry:{n:'Berry',g:['#b197fc','#f06595cc','#7048e8cc','#e64980aa'],b:'#140a1f',a:'#f3a6ff'},
  mono:{n:'Mono',g:['#4a5568','#718096cc','#2d3748cc','#a0aec0aa'],b:'#0c0e12',a:'#e2e8f0'}};
 const st=document.createElement('style');st.textContent=`
+#toast{z-index:999!important}
 .bg{background:radial-gradient(45% 35% at 12% 8%,var(--g1,#4f6bff),transparent 70%),radial-gradient(40% 35% at 95% 28%,var(--g2,#00d4b4cc),transparent 70%),radial-gradient(55% 45% at 30% 100%,var(--g3,#c13bffcc),transparent 70%),radial-gradient(35% 30% at 80% 75%,var(--g4,#ff7a59aa),transparent 70%),var(--bgc,#0b1020)!important}
 .bg::before{background:radial-gradient(closest-side,var(--g1,#5b7bff),transparent)!important}
 .bg::after{background:radial-gradient(closest-side,var(--g3,#c13bff),transparent)!important}
@@ -35,35 +35,48 @@ $('join').appendChild(tb);
 /* ---------- push ---------- */
 const b64=s=>{const p='='.repeat((4-s.length%4)%4),d=atob((s+p).replace(/-/g,'+').replace(/_/g,'/'));return Uint8Array.from([...d].map(c=>c.charCodeAt(0)))};
 const supported=()=>'serviceWorker' in navigator&&'PushManager' in window&&'Notification' in window;
-async function sendSub(sub){const r=await fetch('/api/push/sub',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+TOKEN},body:JSON.stringify({sub:sub.toJSON()})});if(!r.ok)throw'Gagal mendaftarkan push'}
+const wait=ms=>new Promise(r=>setTimeout(r,ms));
+const withTO=(p,ms,msg)=>Promise.race([p,new Promise((_,rj)=>setTimeout(()=>rj(msg),ms))]);
+async function sendSub(sub){const r=await fetch('/api/push/sub',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+TOKEN},body:JSON.stringify({sub:sub.toJSON()})});if(!r.ok)throw'Gagal mendaftarkan push ke server'}
+async function getReg(){let reg=await navigator.serviceWorker.getRegistration();if(!reg)reg=await navigator.serviceWorker.register('/sw.js');
+ await withTO(navigator.serviceWorker.ready,6000,'Service worker belum siap. Muat ulang halaman lalu coba lagi');return reg}
+async function subscribe(reg,key){
+ try{return await reg.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:b64(key)})}
+ catch(e){if(e&&e.name==='NotAllowedError')throw'Izin notifikasi diblokir. Aktifkan lewat pengaturan situs di browser';
+  if(e&&e.name==='AbortError'){await wait(1500);try{return await reg.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:b64(key)})}catch(x){}}
+  throw'Layanan push browser gagal ('+((e&&e.name)||'error')+'). Coba lagi, atau pakai Chrome terbaru dengan Google Play Services aktif'}}
 async function pushOn(){
  if(!supported())throw'Browser ini tidak mendukung push';
  if(!TOKEN)throw'Login dulu';
  const p=Notification.permission==='granted'?'granted':await Notification.requestPermission();if(p!=='granted')throw'Izin notifikasi ditolak';
  const k=(await (await fetch('/api/vapid')).json()).key;if(!k)throw'Push belum aktif di server';
- const reg=await navigator.serviceWorker.ready;let sub=await reg.pushManager.getSubscription();
- if(!sub)sub=await reg.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:b64(k)});
+ const reg=await getReg();let sub=await reg.pushManager.getSubscription();
+ if(!sub)sub=await subscribe(reg,k);
  await sendSub(sub);LS.s('nb-p','1')}
 async function pushOff(){LS.s('nb-p','0');try{const reg=await navigator.serviceWorker.ready,sub=await reg.pushManager.getSubscription();
  if(sub){await fetch('/api/push/unsub',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+TOKEN},body:JSON.stringify({endpoint:sub.endpoint})});await sub.unsubscribe()}}catch(e){}}
 let synced=false;
 setInterval(async()=>{if(synced||!USER||LS.g('nb-p')!=='1'||!supported()||Notification.permission!=='granted')return;synced=true;
  try{const reg=await navigator.serviceWorker.ready,sub=await reg.pushManager.getSubscription();if(sub)await sendSub(sub);else LS.s('nb-p','0')}catch(e){synced=false}},4000);
-/* ---------- status latar belakang & info ---------- */
 const vis=()=>{try{ws&&ws.readyState===1&&ws.send(JSON.stringify({t:'vis',h:document.hidden}))}catch(e){}};
 document.addEventListener('visibilitychange',vis);
 const OW=window.WebSocket;
-window.WebSocket=function(u,p){const w=new OW(u,p);w.addEventListener('message',e=>{try{const m=JSON.parse(e.data);if(m.t==='joined')setTimeout(vis,300);else if(m.t==='info')toast(m.msg)}catch(x){}});return w};
+window.WebSocket=function(u,p){const w=new OW(u,p);w.addEventListener('message',e=>{try{const m=JSON.parse(e.data);
+ if(m.t==='joined')setTimeout(vis,300);else if(m.t==='info'){const s=$('nbst');if(s)s.textContent=m.msg;toast(m.msg)}}catch(x){}});return w};
 window.WebSocket.prototype=OW.prototype;
-/* ---------- tambahan di panel pengaturan ---------- */
 function extras(g){if(!g)return;const end=g.lastElementChild,add=(...n)=>n.forEach(x=>g.insertBefore(x,end));
  add(mk('h4','Tema warna'),themeRow(),mk('h4','Push & undangan'));
- const pb=mk('button');const lab=()=>{pb.textContent=!supported()?'Push tidak didukung':LS.g('nb-p')==='1'?'🔔 Push notifikasi: Aktif':'🔕 Push notifikasi: Mati'};
- pb.onclick=async()=>{if(LS.g('nb-p')==='1'){await pushOff();toast('Push dimatikan')}else{try{await pushOn();toast('Push aktif')}catch(e){toast(typeof e==='string'?e:'Gagal mengaktifkan push')}}lab()};
+ const pb=mk('button'),sp=mk('p','','badge');sp.id='nbst';const say=t=>{sp.textContent=t};
+ const lab=()=>{pb.textContent=!supported()?'Push tidak didukung':LS.g('nb-p')==='1'?'🔔 Push notifikasi: Aktif':'🔕 Push notifikasi: Mati'};
+ let busy=false;
+ pb.onclick=async()=>{if(busy)return;busy=true;pb.disabled=true;say('Memproses…');
+  try{if(LS.g('nb-p')==='1'){await pushOff();say('Push dimatikan.')}else{await pushOn();say('✅ Push aktif. Tes: undang username kamu sendiri, lalu tutup aplikasi.')}}
+  catch(e){say('⚠️ '+(typeof e==='string'?e:'Gagal mengaktifkan push'))}
+  busy=false;pb.disabled=false;lab()};
  lab();
  const ir=mk('div');ir.style.cssText='display:flex;gap:8px';const iu=mk('input');iu.placeholder='Username teman';iu.maxLength=16;iu.autocapitalize='none';iu.autocomplete='off';iu.style.cssText='flex:1;min-width:0';
- const ib=mk('button','Undang','pri');ib.onclick=()=>{const u=iu.value.trim();if(!u)return toast('Isi username teman');try{ws.send(JSON.stringify({t:'invite',to:u}))}catch(e){}iu.value=''};
+ const ib=mk('button','Undang','pri');ib.onclick=()=>{const u=iu.value.trim();if(!u)return say('Isi username teman');try{ws.send(JSON.stringify({t:'invite',to:u}));say('Mengirim undangan…')}catch(e){say('Tidak terhubung ke server')}iu.value=''};
  ir.append(iu,ib);
- add(pb,ir,mk('p','Push masuk walau Nobar ditutup untuk undangan. Pesan dan aktivitas room masuk selama Nobar masih berjalan di latar belakang. Temanmu harus sudah mengaktifkan push.','badge'))}
+ add(pb,ir,sp,mk('p','Push masuk walau Nobar ditutup untuk undangan. Pesan dan aktivitas room masuk selama Nobar masih berjalan di latar belakang. Temanmu harus sudah mengaktifkan push.','badge'))}
 new MutationObserver(ms=>ms.forEach(m=>m.addedNodes.forEach(n=>{if(n.nodeType===1&&n.classList&&n.classList.contains('ov')&&/Pengaturan/.test(n.textContent))extras(n.querySelector('.sp'))}))).observe(document.body,{childList:true});
 })();
