@@ -23,7 +23,7 @@ rs.onclick=()=>{if(!sync||!sync.video)return toast('Belum ada video');
  try{const p=expect(sync);window.lastFix=Date.now();yt?yt.seekTo(p,true):(el.currentTime=p);
   if(sync.playing){yt?yt.playVideo():el.play().catch(()=>{})}else{yt?yt.pauseVideo():el.pause()}toast('Disinkronkan ke posisi teman')}catch(e){}};
 tools.appendChild(rs);
-/* ---------- tunggu bersama (buffering) ---------- */
+/* ---------- tunggu bersama ---------- */
 let holdOn=false;
 const hc=mk('div',0,'glass');hc.id='holdc';hc.setAttribute('data-keep','1');
 const ht=mk('span'),hs=mk('button','Lanjut');hs.onclick=()=>tx({t:'holdskip'});hc.append(ht,hs);stage.appendChild(hc);
@@ -33,17 +33,38 @@ function ahead(){try{
 }catch(e){}return 99}
 function starving(){if(!sync||!sync.video||(!yt&&!el))return false;const d=dur();if(d&&d-cur()<6)return false;
  return (sync.playing&&buf())||(holdOn&&ahead()<5)}
-let since=0,sent=false;
-setInterval(()=>{const s=starving();
+/* ---------- penonton baru: muat dulu, semua menunggu ---------- */
+let since=0,sent=false,joinWait=false,jwAt=0,fresh=false,pre={t:0,done:false};
+function ready(){try{
+ if(el)return el.readyState>=3;
+ if(yt&&yt.getPlayerState)return pre.done||(dur()>0&&yt.getPlayerState()===2&&ahead()>=3);
+}catch(e){}return false}
+setInterval(()=>{
+ if(joinWait){
+  const age=Date.now()-jwAt;
+  if(!sync||!sync.video){if(age>4000)joinWait=false;return}
+  if(!sent){sent=true;tx({t:'buf',b:true})}
+  if(yt&&yt.getPlayerState&&!pre.done){
+   try{const s=yt.getPlayerState();
+    if(s===1){if(ahead()>=3){yt.pauseVideo();pre.done=true;try{yt.unMute()}catch(e){}try{yt.seekTo(sync.playing?expect(sync):sync.pos,true)}catch(e){}}}
+    else if(s!==3&&Date.now()-pre.t>1200){pre.t=Date.now();yt.mute();yt.playVideo()}}catch(e){}}
+  if(ready()||age>15000){joinWait=false;sent=false;tx({t:'buf',b:false})}
+  return}
+ const s=starving();
  if(s){if(!since)since=Date.now();if(!sent&&(holdOn||Date.now()-since>1500)){sent=true;tx({t:'buf',b:true})}}
- else{since=0;if(sent){sent=false;tx({t:'buf',b:false})}}},500);
+ else{since=0;if(sent){sent=false;tx({t:'buf',b:false})}}
+},400);
+/* ---------- laporan posisi tiap 2 detik (untuk sinkron ulang di server) ---------- */
+setInterval(()=>{if(sync&&sync.video&&(yt||el)&&!document.hidden&&!joinWait)tx({t:'pos',p:cur(),b:!!buf()})},2000);
 const OW=window.WebSocket;
 window.WebSocket=function(u,p){const w=new OW(u,p);w.addEventListener('message',e=>{try{on(JSON.parse(e.data))}catch(x){}});return w};
 window.WebSocket.prototype=OW.prototype;
 function on(m){
- if(m.t==='joined'){holdOn=false;sent=false;since=0;hc.style.display='none'}
+ if(m.t==='joined'){holdOn=false;sent=false;since=0;joinWait=false;fresh=true;pre={t:0,done:false};hc.style.display='none';setTimeout(()=>{fresh=false},1500)}
+ else if(m.t==='state'){if(fresh){fresh=false;if(m.video&&m.playing){joinWait=true;jwAt=Date.now()}}}
  else if(m.t==='hold'){holdOn=!!m.on;
-  if(m.on){const mine=(m.who||[]).includes(name||USER);ht.textContent=mine?'⏳ Memuat… semua menunggumu':'⏳ Menunggu '+(m.who||[]).join(', ')+' memuat…';hc.style.display='flex'}
+  if(m.on){const mine=(m.who||[]).includes(name||USER);
+   ht.textContent=m.why==='sync'?'🔄 Menyamakan posisi…':(mine?'⏳ Memuat… semua menunggumu':'⏳ Menunggu '+(m.who||[]).join(', ')+' memuat…');hc.style.display='flex'}
   else hc.style.display='none'}
  else if(m.t==='proposal'&&m.p&&m.p.by!==me&&navigator.vibrate){try{navigator.vibrate([60,40,60])}catch(e){}}}
 /* ---------- notifikasi kecil di dalam layar penuh ---------- */
