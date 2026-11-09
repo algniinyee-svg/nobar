@@ -1,4 +1,4 @@
-module.exports = ({ wss, rooms, send, verify, getPool, pushUser, pushReady }) => {
+module.exports = ({ wss, rooms, send, verify, getPool, pushUser, canPush, hasDevice }) => {
   const clean = (s, n) => String(s || '').replace(/[<>]/g, '').trim().slice(0, n);
   const find = ws => { for (const r of rooms.values()) { const me = r.members.find(c => c.ws === ws); if (me) return { r, me }; } return null; };
   function live(ln) {
@@ -10,7 +10,7 @@ module.exports = ({ wss, rooms, send, verify, getPool, pushUser, pushReady }) =>
   wss.on('connection', ws => ws.on('message', raw => {
     let m; try { m = JSON.parse(raw); } catch { return; }
     if (!m || typeof m.t !== 'string') return;
-    if (m.t === 'hello') { const au = verify(m.token); if (au) ws.ib = { ln: au.u.toLowerCase(), hidden: !!m.h }; return; }
+    if (m.t === 'hello') { const au = verify(m.token); if (au && !String(au.u).startsWith('g:')) ws.ib = { ln: au.u.toLowerCase(), hidden: !!m.h }; return; }
     if (m.t === 'vis' && ws.ib) { ws.ib.hidden = !!m.h; return; }
     if (m.t !== 'invite2') return;
     const f = find(ws); if (!f) return;
@@ -26,15 +26,12 @@ module.exports = ({ wss, rooms, send, verify, getPool, pushUser, pushReady }) =>
       const lv = live(to);
       lv.forEach(x => send(x.ws, Object.assign({ t: 'invite' }, payload)));
       let pushed = false;
-      if (!lv.some(x => !x.hidden) && pushReady()) {
-        const s = await pool.query('SELECT 1 FROM push_dev WHERE lname = $1 LIMIT 1', [to]);
-        if (s.rows.length) {
-          pushUser(to, { title: '📨 Undangan Nobar', body: me.name + ' mengajakmu ke room ' + r.code + (r.pw ? ' 🔒' : ''), tag: 'inv', url: '/#' + r.code, inv: payload });
-          pushed = true;
-        }
+      if (!lv.some(x => !x.hidden) && canPush() && await hasDevice(to)) {
+        pushUser(to, { title: '📨 Undangan Nobar', body: me.name + ' mengajakmu ke room ' + r.code + (r.pw ? ' 🔒' : ''), tag: 'inv', url: '/#' + r.code, inv: payload });
+        pushed = true;
       }
       if (lv.length || pushed) send(ws, { t: 'info', msg: 'Undangan terkirim ke ' + a.rows[0].username });
-      else send(ws, { t: 'info', msg: 'Dia sedang tidak online dan belum mengaktifkan push.' });
+      else send(ws, { t: 'info', msg: 'Dia sedang tidak online dan belum mengaktifkan notifikasi.' });
     }).catch(() => {});
   }));
 };
