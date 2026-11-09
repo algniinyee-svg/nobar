@@ -46,17 +46,21 @@ module.exports = ({ server, wss, rooms, send, bcast, apply, getPool, verify, bea
     catch (e) { console.log('translate gagal:', e.message); return J(res, 502, { error: 'Layanan terjemahan sedang tidak tersedia.' }); }
   });
 
-  /* ---------- tunggu bersama (buffering) & rekap ---------- */
+  /* ---------- tunggu bersama, sinkron ulang, rekap ---------- */
   const find = ws => { for (const r of rooms.values()) { const me = r.members.find(c => c.ws === ws); if (me) return { r, me }; } return null; };
   const canCtl = (r, me) => r.members.length < 3 || r.host === me.id;
   const rec = r => r.rec || (r.rec = { start: Date.now(), watch: 0, videos: [], users: new Set(), msgs: {}, reacts: {}, last: '' });
-  function maybeHold(r) {
-    if (r.members.length < 2 || !r.playing || r.cd || r.hold) return;
-    const b = r.members.filter(c => c.buf && Date.now() > (c.noHold || 0));
-    if (!b.length) return;
-    apply(r, { k: 'pause', pos: r.pos + (Date.now() - r.at) / 1000 });
-    r.hold = { stamp: r.at, timer: setTimeout(() => release(r, true), 20000) };
-    bcast(r, { t: 'hold', on: true, who: b.map(c => c.name) });
+  const pos = r => r.playing ? r.pos + (Date.now() - r.at) / 1000 : r.pos;
+
+  function startHold(r, who, why, ms) {
+    const h = { stamp: r.at, why, timer: null };
+    r.hold = h;
+    h.timer = setTimeout(() => {
+      if (r.hold !== h) return;
+      release(r, why === 'buf');
+      if (r.hold === h) setTimeout(() => { if (r.hold === h) release(r, true); }, 20000);
+    }, ms);
+    bcast(r, { t: 'hold', on: true, who, why });
   }
   function release(r, force) {
     const h = r.hold; if (!h) return;
@@ -70,6 +74,14 @@ module.exports = ({ server, wss, rooms, send, bcast, apply, getPool, verify, bea
       if (rooms.get(r.code) === r && !r.hold && !r.playing && r.video && !r.cd && r.at === stamp) apply(r, { k: 'play', pos: r.pos });
     }, 1000);
   }
+  function maybeHold(r) {
+    if (r.members.length < 2 || !r.playing || r.cd || r.hold) return;
+    const b = r.members.filter(c => c.buf && Date.now() > (c.noHold || 0));
+    if (!b.length) return;
+    apply(r, { k: 'pause', pos: pos(r) });
+    startHold(r, b.map(c => c.name), 'buf', 20000);
+  }
+
   wss.on('connection', ws => {
     ws.on('message', raw => {
       let m; try { m = JSON.parse(raw); } catch { return; }
@@ -80,6 +92,11 @@ module.exports = ({ server, wss, rooms, send, bcast, apply, getPool, verify, bea
       if (m.t === 'chat') { const x = rec(r); x.msgs[me.user] = (x.msgs[me.user] || 0) + 1; return; }
       if (m.t === 'react') { const x = rec(r); x.reacts[me.user] = (x.reacts[me.user] || 0) + 1; return; }
       if (m.t === 'buf') { me.buf = !!m.b; if (me.buf) maybeHold(r); else release(r, false); return; }
+      if (m.t === 'pos') {
+        const p = +m.p;
+        if (Number.isFinite(p) && p >= 0 && r.video) { me.drift = p - pos(r); me.dAt = Date.now(); me.bufNow = !!m.b; }
+        return;
+      }
       if (m.t === 'holdskip') { if (r.hold && (canCtl(r, me) || me.buf)) release(r, true); return; }
       if (m.t === 'recapreq') {
         const x = rec(r);
@@ -88,6 +105,29 @@ module.exports = ({ server, wss, rooms, send, bcast, apply, getPool, verify, bea
     });
     ws.on('close', () => rooms.forEach(r => { if (r.hold) release(r, r.members.length < 2); }));
   });
+
+  /* sinkron ulang berkala: yang tertinggal -> semua menunggu di posisi paling lambat; yang kelewat -> ditarik mundur */
+  setInterval(() => rooms.forEach(r => {
+    if (!r.playing || r.hold || r.cd || !r.video || r.members.length < 2) return;
+    const now = Date.now();
+    if (now - (r.syncAt || 0) < 20000 || now - r.at < 5000) return;
+    const fresh = r.members.filter(c => c.dAt && c.dAt > r.at + 2500 && now - c.dAt < 5000 && !c.bufNow && !c.buf && now > (c.noSync || 0));
+    const behind = fresh.filter(c => c.drift < -3);
+    if (behind.length) {
+      const tgt = Math.max(0, pos(r) + Math.min(...behind.map(c => c.drift)));
+      r.syncAt = now;
+      behind.forEach(c => {
+        c.strikes = (c.strikes || []).filter(t => now - t < 120000); c.strikes.push(now);
+        if (c.strikes.length >= 3) c.noSync = now + 120000;
+      });
+      apply(r, { k: 'pause', pos: tgt });
+      startHold(r, behind.map(c => c.name), 'sync', 2500);
+      return;
+    }
+    const ahead = fresh.filter(c => c.drift > 3);
+    if (ahead.length) { r.syncAt = now - 12000; ahead.forEach(c => { c.dAt = 0; send(c.ws, { t: 'state', video: r.video, playing: r.playing, pos: pos(r) }); }); }
+  }), 2000);
+
   setInterval(() => rooms.forEach(r => {
     const x = rec(r);
     if (r.playing) x.watch += 5;
