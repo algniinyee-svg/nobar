@@ -3,6 +3,7 @@ const ROOT = path.join(__dirname, '..', 'android');
 const MAIN = path.join(ROOT, 'app', 'src', 'main');
 const RES = path.join(MAIN, 'res');
 const PKG = 'com.algani.nobar';
+const HOST = 'nobar-d2bd.roarai.app';
 const log = m => console.log('[patch] ' + m);
 const soft = (name, fn) => { try { fn(); log('ok: ' + name); } catch (e) { log('dilewati (' + name + '): ' + e.message); } };
 
@@ -29,7 +30,7 @@ const fore = (u, v) => { const a = (u - 0.5) / 0.62 + 0.5, b = (v - 0.5) / 0.62 
 const stat = (u, v) => { const d = Math.hypot(u - 0.5, v - 0.5); return ((d > 0.36 && d < 0.47) || tri(u, v)) ? [255, 255, 255, 255] : [0, 0, 0, 0]; };
 const walk = d => fs.readdirSync(d, { withFileTypes: true }).flatMap(e => e.isDirectory() ? walk(path.join(d, e.name)) : [path.join(d, e.name)]);
 
-/* ---------- 1. izin & metadata (wajib) ---------- */
+/* ---------- 1. izin, metadata, dan App Links (wajib) ---------- */
 (() => {
   const mf = path.join(MAIN, 'AndroidManifest.xml');
   let x = fs.readFileSync(mf, 'utf8');
@@ -38,12 +39,20 @@ const walk = d => fs.readdirSync(d, { withFileTypes: true }).flatMap(e => e.isDi
   const add = perms.filter(p => !x.includes('android.permission.' + p)).map(p => '    <uses-permission android:name="android.permission.' + p + '" />').join('\n')
     + '\n    <uses-feature android:name="android.hardware.camera" android:required="false" />\n    <uses-feature android:name="android.hardware.microphone" android:required="false" />\n';
   x = x.replace('<application', add + '    <application');
+  const links = '        <intent-filter android:autoVerify="true">\n'
+    + '            <action android:name="android.intent.action.VIEW" />\n'
+    + '            <category android:name="android.intent.category.DEFAULT" />\n'
+    + '            <category android:name="android.intent.category.BROWSABLE" />\n'
+    + '            <data android:scheme="https" android:host="' + HOST + '" />\n'
+    + '        </intent-filter>\n    ';
+  if (!x.includes('</activity>')) throw new Error('tag activity tidak ditemukan');
+  x = x.replace('</activity>', links + '</activity>');
   const meta = '        <meta-data android:name="com.google.firebase.messaging.default_notification_icon" android:resource="@drawable/ic_stat_nobar" />\n'
     + '        <meta-data android:name="com.google.firebase.messaging.default_notification_color" android:resource="@color/nobar_notif" />\n'
     + '        <meta-data android:name="com.google.firebase.messaging.default_notification_channel_id" android:value="nobar" />\n    ';
   x = x.replace('</application>', meta + '</application>');
   fs.writeFileSync(mf, x);
-  log('izin dan metadata ditambahkan');
+  log('izin, metadata, dan App Links ditambahkan');
 })();
 
 /* ---------- 2. kode native (wajib) ---------- */
