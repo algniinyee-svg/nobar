@@ -45,16 +45,24 @@ async function draw(d){
  x.fillText('😍 Paling ekspresif: '+(tr?fit(x,tr[0],340)+' ('+tr[1]+')':'-'),120,1240);
  x.textAlign='center';x.fillStyle='rgba(255,255,255,.6)';x.font='400 28px system-ui,sans-serif';x.fillText('Nobar · dibuat oleh Algani Hamid',W/2,1316);
  return c}
+const errTxt=e=>typeof e==='string'?e:((e&&(e.message||e.errorMessage))||'Perbarui aplikasi ke versi terbaru');
 async function build(d){
  const o=mk('div',0,'ov'),g=mk('div',0,'glass sp'),msg=mk('p','Membuat kartu…','badge');o.appendChild(g);g.append(mk('b','Kartu rekap nobar'),msg);document.body.appendChild(o);
  o.onclick=e=>{if(e.target===o)o.remove()};
  try{const c=await draw(d);c.style.cssText='width:100%;height:auto;border-radius:18px;display:block';msg.remove();g.appendChild(c);
   const blob=await new Promise(r=>c.toBlob(r,'image/png'));
   const sh=mk('button','Bagikan','pri'),sv=mk('button','Simpan gambar'),st=mk('p','','badge');
-  sh.onclick=async()=>{try{const f=new File([blob],'rekap-nobar.png',{type:'image/png'});
-   if(navigator.canShare&&navigator.canShare({files:[f]}))await navigator.share({files:[f],title:'Rekap Nobar',text:'Nobar seru di room '+d.code});
-   else st.textContent='Perangkat ini tidak bisa berbagi gambar langsung. Gunakan Simpan gambar.'}catch(e){}};
-  sv.onclick=()=>{const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='rekap-nobar.png';document.body.appendChild(a);a.click();a.remove();st.textContent='Gambar disimpan ke unduhan.'};
+  const b64=()=>c.toDataURL('image/png').split(',')[1];
+  sh.onclick=async()=>{
+   if(window.NB_APP){st.textContent='Membuka menu berbagi…';
+    try{await window.nbNative('shareImage',{data:b64(),text:'Nobar seru di room '+d.code});st.textContent=''}catch(e){st.textContent='⚠️ '+errTxt(e)}return}
+   try{const f=new File([blob],'rekap-nobar.png',{type:'image/png'});
+    if(navigator.canShare&&navigator.canShare({files:[f]}))await navigator.share({files:[f],title:'Rekap Nobar',text:'Nobar seru di room '+d.code});
+    else st.textContent='Perangkat ini tidak bisa berbagi gambar langsung. Gunakan Simpan gambar.'}catch(e){}};
+  sv.onclick=async()=>{
+   if(window.NB_APP){st.textContent='Menyimpan…';
+    try{await window.nbNative('saveImage',{data:b64(),name:'nobar-rekap'});st.textContent='✅ Tersimpan di Galeri (folder Pictures/Nobar).'}catch(e){st.textContent='⚠️ '+errTxt(e)}return}
+   const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='rekap-nobar.png';document.body.appendChild(a);a.click();a.remove();st.textContent='Gambar disimpan ke unduhan.'};
   g.append(sh,sv,st)}
  catch(e){msg.textContent='Gagal membuat kartu.'}}
 })();
