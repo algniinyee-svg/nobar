@@ -12,6 +12,7 @@ jobs:
     timeout-minutes: 45
     env:
       KS_PASS: ${{ secrets.KEYSTORE_PASSWORD }}
+      GSJ: ${{ secrets.GOOGLE_SERVICES_JSON }}
     steps:
       - name: Ambil kode
         uses: actions/checkout@v4
@@ -46,11 +47,20 @@ jobs:
         working-directory: android-app
         run: node scripts/patch.js
 
+      - name: Pasang konfigurasi Firebase
+        run: |
+          if [ -z "$GSJ" ]; then
+            echo "::warning::Secret GOOGLE_SERVICES_JSON belum diisi. Aplikasi tetap jadi, tapi notifikasi saat aplikasi ditutup belum aktif."
+          else
+            printf '%s' "$GSJ" > android-app/android/app/google-services.json
+            node -e "const j=JSON.parse(require('fs').readFileSync('android-app/android/app/google-services.json','utf8'));const ok=(j.client||[]).some(c=>c.client_info&&c.client_info.android_client_info&&c.client_info.android_client_info.package_name==='com.algani.nobar');if(!ok){console.error('::error::google-services.json tidak berisi aplikasi com.algani.nobar. Daftarkan aplikasi Android dengan nama paket tersebut di Firebase.');process.exit(1)}console.log('google-services.json valid untuk proyek',j.project_info&&j.project_info.project_id)"
+          fi
+
       - name: Atur versi
         working-directory: android-app/android/app
         run: |
           sed -i "s/versionCode [0-9]*/versionCode ${{ github.run_number }}/" build.gradle
-          sed -i "s/versionName \"[^\"]*\"/versionName \"1.0.${{ github.run_number }}\"/" build.gradle
+          sed -i "s/versionName \"[^\"]*\"/versionName \"1.1.${{ github.run_number }}\"/" build.gradle
           grep -n "versionCode\|versionName" build.gradle
 
       - name: Sinkronkan
@@ -96,6 +106,6 @@ jobs:
           git config user.email "nobar-bot@users.noreply.github.com"
           git add -f public/nobar.apk
           if [ "$NEW_KS" = "1" ]; then git add -f android-app/release.keystore.enc; fi
-          git commit -m "build: APK v1.0.${{ github.run_number }}" || echo "tidak ada perubahan"
+          git commit -m "build: APK v1.1.${{ github.run_number }}" || echo "tidak ada perubahan"
           git pull --rebase origin "${GITHUB_REF_NAME}" || true
           git push origin "HEAD:${GITHUB_REF_NAME}"
