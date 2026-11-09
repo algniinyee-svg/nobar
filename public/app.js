@@ -1,26 +1,40 @@
 const $=id=>document.getElementById(id);
-let ws,me=0,host=0,mode='solo',code='',name='',vid=null,playing=false,yt=null,el=null,retry=0,dragging=false,sync=null,leaving=false,lt=0,loadingHist=false;
-let TOKEN='',USER='',ACC=false,reg=false;
+let ws,me=0,host=0,mode='solo',code='',name='',vid=null,playing=false,yt=null,el=null,retry=0,dragging=false,sync=null,leaving=false,lt=0,loadingHist=false,seenHist=false;
+let TOKEN='',USER='',GUEST='',ACC=false,reg=false,gmode=false;
 try{TOKEN=localStorage.getItem('nobar-token')||''}catch(e){}
 const toast=t=>{const e=$('toast');e.textContent=t;e.style.display='block';clearTimeout(toast.h);toast.h=setTimeout(()=>e.style.display='none',2800)};
 const fmt=s=>{s=Math.max(0,s|0);return(s/60|0)+':'+String(s%60).padStart(2,'0')};
 const ios=/iP(hone|ad|od)/.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
 if(ios&&!navigator.standalone)$('ioshint').style.display='block';
-const hash=location.hash.slice(1);if(hash)$('code').value=decodeURIComponent(hash).toUpperCase();
+const hash=location.hash.slice(1);if(hash){$('code').value=decodeURIComponent(hash).toUpperCase();gmode=true}
 try{$('name').value=localStorage.getItem('nobar-name')||''}catch(e){}
-function show(){$('acard').style.display=ACC&&!USER?'grid':'none';$('jcard').style.display=!ACC||USER?'grid':'none';
- $('hi').style.display=ACC?'block':'none';$('un').textContent=USER;$('name').style.display=ACC?'none':'block'}
-(async()=>{try{const r=await fetch('/api/me',{headers:{Authorization:'Bearer '+TOKEN}});const j=await r.json();ACC=!!j.accounts;USER=j.user||''}catch(e){}show()})();
+function show(){const logged=!!USER||!!GUEST;
+ $('acard').style.display=ACC&&!logged&&!gmode?'grid':'none';
+ $('gcard').style.display=ACC&&!logged&&gmode?'grid':'none';
+ $('jcard').style.display=!ACC||logged?'grid':'none';
+ $('hi').style.display=ACC?'block':'none';
+ $('un').textContent=USER||(GUEST?GUEST+' (tamu)':'');
+ $('name').style.display=ACC?'none':'block'}
+(async()=>{try{const r=await fetch('/api/me',{headers:{Authorization:'Bearer '+TOKEN}});const j=await r.json();ACC=!!j.accounts;USER=j.user||'';GUEST=j.guest||''}catch(e){}show()})();
 $('at').onclick=()=>{reg=!reg;$('ab').textContent=reg?'Daftar':'Masuk';$('at').textContent=reg?'Sudah punya akun? Masuk':'Belum punya akun? Daftar';$('ap').autocomplete=reg?'new-password':'current-password'};
 $('ab').onclick=async()=>{const u=$('au').value.trim(),p=$('ap').value;if(!u||!p)return toast('Isi username dan password');
  $('ab').disabled=true;
  try{const r=await fetch(reg?'/api/register':'/api/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:u,password:p})});
   const j=await r.json();if(!r.ok)return toast(j.error||'Gagal');
-  TOKEN=j.token;USER=j.user;try{localStorage.setItem('nobar-token',TOKEN)}catch(e){}$('ap').value='';show()}
+  TOKEN=j.token;USER=j.user;GUEST='';try{localStorage.setItem('nobar-token',TOKEN)}catch(e){}$('ap').value='';show()}
  catch(e){toast('Tidak bisa terhubung ke server')}finally{$('ab').disabled=false}};
 ['au','ap'].forEach(i=>$(i).onkeydown=e=>{if(e.key==='Enter')$('ab').click()});
-$('lo').onclick=()=>{TOKEN='';USER='';try{localStorage.removeItem('nobar-token')}catch(e){}show()};
-$('go').onclick=()=>{name=ACC?USER:$('name').value.trim();code=$('code').value.trim().toUpperCase();
+$('gt').onclick=()=>{gmode=true;show()};
+$('gback').onclick=()=>{gmode=false;show()};
+$('gb').onclick=async()=>{const n=$('gn').value.trim();if(n.length<2)return toast('Isi nama panggilan (minimal 2 huruf)');
+ $('gb').disabled=true;
+ try{const r=await fetch('/api/guest',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:n})});
+  const j=await r.json();if(!r.ok)return toast(j.error||'Gagal');
+  TOKEN=j.token;USER='';GUEST=j.name;try{localStorage.setItem('nobar-token',TOKEN)}catch(e){}show()}
+ catch(e){toast('Tidak bisa terhubung ke server')}finally{$('gb').disabled=false}};
+$('gn').onkeydown=e=>{if(e.key==='Enter')$('gb').click()};
+$('lo').onclick=()=>{TOKEN='';USER='';GUEST='';try{localStorage.removeItem('nobar-token')}catch(e){}show()};
+$('go').onclick=()=>{name=ACC?(USER||(GUEST?GUEST+' (tamu)':'')):$('name').value.trim();code=$('code').value.trim().toUpperCase();
  if(!name||!code)return toast(ACC?'Isi kode room':'Isi nama dan kode room');
  try{if(!ACC)localStorage.setItem('nobar-name',name)}catch(e){}
  location.hash=code;$('join').style.display='none';$('room').style.display='flex';$('rc').textContent=code;connect()};
@@ -33,13 +47,15 @@ function connect(){
  ws.onopen=()=>{retry=0;ws.send(JSON.stringify({t:'join',room:code,name,token:TOKEN}))};
  ws.onclose=()=>{if(leaving)return;toast('Terputus, menyambung ulang…');setTimeout(connect,Math.min(1000*++retry,5000))};
  ws.onmessage=e=>{const m=JSON.parse(e.data);
-  if(m.t==='joined'){me=m.id}
+  if(m.t==='joined'){me=m.id;if(m.name)name=m.name}
   else if(m.t==='members'){const prevHost=host;host=m.host;mode=m.mode;
    $('info').textContent=m.list.length+' orang · '+(mode==='duo'?'berdua, saling setuju':mode==='solo'?'sendiri':'host: '+(m.list.find(x=>x.id===host)||{}).name);
    if(prevHost&&prevHost!==host)sys((m.list.find(x=>x.id===host)||{}).name+' jadi host');ui()}
   else if(m.t==='state'){m.at=Date.now();applyState(m)}
   else if(m.t==='chat')chat(m);
-  else if(m.t==='history'){loadingHist=true;sys('Riwayat chat');m.list.forEach(x=>chat({from:x.from,text:x.text,id:x.from===name?me:0}));sys('Baru bergabung');loadingHist=false}
+  else if(m.t==='history'){loadingHist=true;const first=!seenHist;seenHist=true;$('msgs').innerHTML='';
+   if(first)sys('Riwayat chat');m.list.forEach(x=>chat({from:x.from,text:x.text,id:x.from===name?me:0}));
+   sys(first?'Baru bergabung':'Tersambung kembali');loadingHist=false}
   else if(m.t==='proposal')proposal(m);
   else if(m.t==='kicked'||m.t==='replaced'){leaving=true;toast(m.t==='kicked'?'Kamu dikeluarkan oleh host':'Akun dipakai di perangkat lain');setTimeout(()=>location.replace(location.pathname),1600)}
   else if(m.t==='err')toast(m.msg)};
