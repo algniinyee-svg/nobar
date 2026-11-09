@@ -48,10 +48,12 @@ function banner(title,body,i,tag){
  setTimeout(()=>d.remove(),300000);
  if(inFS())toast(title+': '+body)}
 const noJoin=t=>t==='chat'||t==='join'||t==='prop'||t==='jr'||t==='mention';
+window.nbPushIn=m=>banner(m.title,m.body,noJoin(m.tag)?null:pick(m.inv,m.url),m.tag);
+window.nbPushTap=m=>{const i=pick(m.inv,m.url);if(i)joinNow(i)};
 if('serviceWorker' in navigator)navigator.serviceWorker.addEventListener('message',e=>{
  const m=e.data||{};
- if(m.t==='pushmsg')banner(m.title,m.body,noJoin(m.tag)?null:pick(m.inv,m.url),m.tag);
- else if(m.t==='invite'){const i=pick(m.inv,m.url);if(i)joinNow(i)}});
+ if(m.t==='pushmsg')window.nbPushIn(m);
+ else if(m.t==='invite')window.nbPushTap(m)});
 /* ---------- undangan lewat websocket (kotak masuk) ---------- */
 const OW=window.WebSocket,S0=OW.prototype.send;
 OW.prototype.send=function(d){if(typeof d==='string'&&d.indexOf('"t":"invite"')>0)d=d.replace('"t":"invite"','"t":"invite2"');return S0.call(this,d)};
@@ -68,10 +70,8 @@ function inbox(){
   me.onclose=()=>{if(ib===me)ib=null}}catch(e){ib=null}}
 setInterval(inbox,5000);inbox();
 document.addEventListener('visibilitychange',()=>{if(ib&&ib.readyState===1)try{ib.send(JSON.stringify({t:'vis',h:document.hidden}))}catch(e){}});
-/* ---------- hapus notifikasi sistem saat aplikasi terbuka ---------- */
 async function clearNotifs(){try{const reg=await navigator.serviceWorker.ready;(await reg.getNotifications()).forEach(n=>n.close())}catch(e){}}
 document.addEventListener('visibilitychange',()=>{if(!document.hidden)clearNotifs()});
 clearNotifs();
-/* ---------- modul khusus aplikasi Android ---------- */
 const nv=document.createElement('script');nv.src='native.js';document.body.appendChild(nv);
 })();
