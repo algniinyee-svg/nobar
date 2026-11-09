@@ -48,7 +48,10 @@ if (pool && VAPID_PUB && VAPID_PRIV) {
   catch (e) { console.log('push unavailable:', e.message); webpush = null; }
 }
 async function pushUser(lname, payload) {
-  fcm.send(lname, payload);
+  /* akun yang punya aplikasi (APK) hanya dikirimi lewat aplikasi, supaya tidak ada notifikasi ganda dari Chrome */
+  let viaApp = false;
+  try { viaApp = await fcm.has(lname); } catch (e) {}
+  if (viaApp) { fcm.send(lname, payload); return; }
   if (!webpush || !pool) return;
   try {
     const r = await pool.query('SELECT endpoint, sub FROM push_dev WHERE lname = $1', [lname]);
