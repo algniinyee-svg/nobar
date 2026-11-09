@@ -404,3 +404,4 @@ require('./wallpaper.js')(server, () => pool, verify, bearer, ipOf, limited);
 require('./turn.js')(server, () => pool, verify, bearer);
 require('./extras.js')({ server, wss, rooms, send, bcast, apply, getPool: () => pool, verify, bearer, ipOf, limited });
 require('./social.js')({ server, wss, rooms, getPool: () => pool, verify, bearer, ipOf, limited, pushUser });
+require('./extras2.js')({ server, wss, rooms, send, bcast, apply, getPool: () => pool, verify, bearer, ipOf });
