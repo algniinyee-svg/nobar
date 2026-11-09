@@ -50,6 +50,7 @@ function banner(title,body,i,tag){
 const noJoin=t=>t==='chat'||t==='join'||t==='prop'||t==='jr'||t==='mention';
 window.nbPushIn=m=>banner(m.title,m.body,noJoin(m.tag)?null:pick(m.inv,m.url),m.tag);
 window.nbPushTap=m=>{const i=pick(m.inv,m.url);if(i)joinNow(i)};
+window.nbOpenUrl=u=>{const i=pick(null,u);if(i)joinNow(i)};
 if('serviceWorker' in navigator)navigator.serviceWorker.addEventListener('message',e=>{
  const m=e.data||{};
  if(m.t==='pushmsg')window.nbPushIn(m);
