@@ -1,0 +1,101 @@
+name: Build Android APK
+on:
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: apk
+  cancel-in-progress: false
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      KS_PASS: ${{ secrets.KEYSTORE_PASSWORD }}
+    steps:
+      - name: Ambil kode
+        uses: actions/checkout@v4
+
+      - name: Cek password keystore
+        run: |
+          if [ ${#KS_PASS} -lt 8 ]; then
+            echo "::error::Secret KEYSTORE_PASSWORD belum diisi atau kurang dari 8 karakter. Isi di Settings > Secrets and variables > Actions."
+            exit 1
+          fi
+
+      - name: Pasang Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Pasang Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Pasang dependensi
+        working-directory: android-app
+        run: npm install --no-audit --no-fund
+
+      - name: Buat proyek Android
+        working-directory: android-app
+        run: npx cap add android
+
+      - name: Patch proyek (izin, ikon, kode native)
+        working-directory: android-app
+        run: node scripts/patch.js
+
+      - name: Atur versi
+        working-directory: android-app/android/app
+        run: |
+          sed -i "s/versionCode [0-9]*/versionCode ${{ github.run_number }}/" build.gradle
+          sed -i "s/versionName \"[^\"]*\"/versionName \"1.0.${{ github.run_number }}\"/" build.gradle
+          grep -n "versionCode\|versionName" build.gradle
+
+      - name: Sinkronkan
+        working-directory: android-app
+        run: npx cap sync android
+
+      - name: Build APK
+        working-directory: android-app/android
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleRelease --no-daemon --stacktrace
+
+      - name: Siapkan kunci penandatangan
+        run: |
+          ENC=android-app/release.keystore.enc
+          if [ -f "$ENC" ]; then
+            openssl enc -d -aes-256-cbc -pbkdf2 -iter 200000 -pass env:KS_PASS -in "$ENC" -out /tmp/release.jks || { echo "::error::Password keystore tidak cocok dengan yang dipakai saat pertama kali."; exit 1; }
+          else
+            keytool -genkeypair -noprompt -keystore /tmp/release.jks -storepass "$KS_PASS" -keypass "$KS_PASS" -alias nobar -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Nobar, O=Algani Hamid, C=ID"
+            openssl enc -aes-256-cbc -pbkdf2 -iter 200000 -salt -pass env:KS_PASS -in /tmp/release.jks -out "$ENC"
+            echo "NEW_KS=1" >> "$GITHUB_ENV"
+          fi
+
+      - name: Tanda tangani APK
+        run: |
+          BT=$(ls -d "$ANDROID_SDK_ROOT"/build-tools/* | sort -V | tail -1)
+          IN=android-app/android/app/build/outputs/apk/release/app-release-unsigned.apk
+          "$BT/zipalign" -p 4 "$IN" /tmp/aligned.apk
+          "$BT/apksigner" sign --ks /tmp/release.jks --ks-pass env:KS_PASS --key-pass env:KS_PASS --out /tmp/nobar.apk /tmp/aligned.apk
+          "$BT/apksigner" verify --print-certs /tmp/nobar.apk | head -5
+          mkdir -p public
+          cp /tmp/nobar.apk public/nobar.apk
+
+      - name: Simpan salinan APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: nobar-apk
+          path: /tmp/nobar.apk
+
+      - name: Simpan APK ke repo
+        run: |
+          git config user.name "nobar-bot"
+          git config user.email "nobar-bot@users.noreply.github.com"
+          git add -f public/nobar.apk
+          if [ "$NEW_KS" = "1" ]; then git add -f android-app/release.keystore.enc; fi
+          git commit -m "build: APK v1.0.${{ github.run_number }}" || echo "tidak ada perubahan"
+          git pull --rebase origin "${GITHUB_REF_NAME}" || true
+          git push origin "HEAD:${GITHUB_REF_NAME}"
