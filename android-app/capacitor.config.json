@@ -1,0 +1,15 @@
+{
+  "appId": "com.algani.nobar",
+  "appName": "Nobar",
+  "webDir": "www",
+  "backgroundColor": "#0b1020",
+  "server": {
+    "url": "https://nobar-d2bd.roarai.app",
+    "androidScheme": "https",
+    "errorPath": "index.html"
+  },
+  "android": {
+    "allowMixedContent": false,
+    "backgroundColor": "#0b1020"
+  }
+}
