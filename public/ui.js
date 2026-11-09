@@ -48,4 +48,6 @@ const ios=/iP(hone|ad|od)/.test(navigator.userAgent);
 const sub=document.querySelector('.hero .sub');
 if(sub&&!standalone&&!ios){const a=mk('a','📲 Unduh aplikasi Android (APK)','pri');a.id='apkbtn';a.href='/nobar.apk';a.setAttribute('download','Nobar.apk');sub.after(a);
  fetch('/nobar.apk',{method:'HEAD'}).then(r=>{if(r.ok)a.style.display='block'}).catch(()=>{})}
+/* ---------- muat modul undangan ---------- */
+const iv=document.createElement('script');iv.src='invite.js';iv.async=false;document.body.appendChild(iv);
 })();
