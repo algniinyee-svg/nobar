@@ -37,6 +37,8 @@ if (process.env.DATABASE_URL) {
 const logEv = (kind, room) => { if (pool) pool.query('INSERT INTO events(kind, room) VALUES ($1, $2)', [kind, room || null]).catch(() => {}); };
 const adminOK = req => process.env.ADMIN_KEY && req.headers['x-admin-key'] === process.env.ADMIN_KEY;
 const onlineNow = () => [...rooms.values()].reduce((a, r) => a + r.members.length, 0);
+/* statistik milik tamu tidak perlu disimpan */
+setInterval(() => { if (pool) pool.query("DELETE FROM user_stats WHERE lname LIKE '% (tamu)%'").catch(() => {}); }, 3600e3);
 
 /* ---------- web push ---------- */
 const VAPID_PUB = process.env.VAPID_PUBLIC, VAPID_PRIV = process.env.VAPID_PRIVATE;
@@ -76,7 +78,7 @@ function pushHidden(r, exceptId, payload, onlyId) {
   if (!webpush) return;
   const now = Date.now();
   r.members.forEach(c => {
-    if (c.id === exceptId || (onlyId && c.id !== onlyId) || !c.hidden) return;
+    if (c.id === exceptId || (onlyId && c.id !== onlyId) || !c.hidden || c.guest) return;
     c.pt = c.pt || {};
     if (now - (c.pt[payload.tag] || 0) < 8000) return;
     c.pt[payload.tag] = now;
@@ -84,19 +86,24 @@ function pushHidden(r, exceptId, payload, onlyId) {
   });
 }
 
-/* ---------- akun ---------- */
-const SECRET = crypto.createHash('sha256').update('nobar|' + (process.env.SESSION_SECRET || process.env.DATABASE_URL || '')).digest();
+/* ---------- akun & tamu ---------- */
+const keyOf = tag => crypto.createHash('sha256').update(tag + (process.env.SESSION_SECRET || process.env.DATABASE_URL || '')).digest();
+const SECRET = keyOf('nobar|'), SECRET_G = keyOf('nobar-guest|');
 const scrypt = util.promisify(crypto.scrypt);
 const hashPw = async (pw, salt) => (await scrypt(pw, salt, 32)).toString('hex');
-const sign = p => { const body = Buffer.from(JSON.stringify(p)).toString('base64url'); return body + '.' + crypto.createHmac('sha256', SECRET).update(body).digest('base64url'); };
-function verify(tok) {
+const signWith = (secret, p) => { const body = Buffer.from(JSON.stringify(p)).toString('base64url'); return body + '.' + crypto.createHmac('sha256', secret).update(body).digest('base64url'); };
+function verifyWith(secret, tok) {
   if (typeof tok !== 'string') return null;
   const [body, sig] = tok.split('.'); if (!body || !sig) return null;
-  const good = crypto.createHmac('sha256', SECRET).update(body).digest('base64url');
+  const good = crypto.createHmac('sha256', secret).update(body).digest('base64url');
   const a = Buffer.from(sig), b = Buffer.from(good);
   if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) return null;
   try { const p = JSON.parse(Buffer.from(body, 'base64url').toString()); return p.exp > Date.now() ? p : null; } catch { return null; }
 }
+const sign = p => signWith(SECRET, p), verify = tok => verifyWith(SECRET, tok);
+const signG = p => signWith(SECRET_G, p);
+const verifyGuest = tok => { const p = verifyWith(SECRET_G, tok); return p && p.g === 1 ? p : null; };
+const verifyAny = tok => verify(tok) || verifyGuest(tok);
 const RC = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
 const newCode = () => { const b = crypto.randomBytes(12); let s = ''; for (let i = 0; i < 12; i++) s += RC[b[i] % RC.length]; return s.match(/.{4}/g).join('-'); };
 const normCode = c => String(c || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
@@ -118,7 +125,16 @@ const server = http.createServer(async (req, res) => {
   const J = (c, o) => { res.writeHead(c, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }); res.end(JSON.stringify(o)); };
   if (ICONS[f]) { res.writeHead(200, { 'Content-Type': 'image/png', 'Cache-Control': 'public,max-age=86400' }); return res.end(ICONS[f]); }
   if (f === '/api/installed' && req.method === 'POST') { stats.installs++; logEv('install'); res.writeHead(204); return res.end(); }
-  if (f === '/api/me') { const p = verify(bearer(req)); return J(200, { accounts: !!pool, user: p ? p.u : null }); }
+  if (f === '/api/me') { const t = bearer(req), p = verify(t), g = p ? null : verifyGuest(t); return J(200, { accounts: !!pool, user: p ? p.u : null, guest: g ? g.n : null }); }
+  if (f === '/api/guest' && req.method === 'POST') {
+    if (!pool) return J(503, { error: 'Mode tamu belum aktif di server ini.' });
+    if (limited('g' + ipOf(req))) return J(429, { error: 'Terlalu banyak percobaan. Coba lagi nanti.' });
+    const b = await readJson(req), n = String((b && b.name) || '').replace(/\s+/g, ' ').trim();
+    if (!/^[\p{L}\p{N}_. -]{2,16}$/u.test(n)) return J(400, { error: 'Nama 2-16 karakter: huruf, angka, spasi, _ . -' });
+    const id = crypto.randomBytes(6).toString('hex');
+    logEv('guest');
+    return J(200, { token: signG({ g: 1, id, u: 'g:' + id, n, exp: Date.now() + 24 * 3600e3 }), name: n });
+  }
   if (f === '/api/vapid') return J(200, { key: webpush ? VAPID_PUB : null });
   if (f === '/api/push/sub' && req.method === 'POST') {
     const p = verify(bearer(req)); if (!p || !pool) return J(401, { error: 'Login dulu.' });
@@ -282,41 +298,50 @@ wss.on('connection', ws => {
       if (r) return;
       const code = clean(m.room, 12).toUpperCase(); if (!code) return;
       const pw = clean(m.pw, 20);
-      let user;
-      if (pool) { const au = verify(m.token); if (!au) return send(ws, { t: 'deny', msg: 'Sesi habis, silakan login lagi.' }); user = au.u; }
-      else user = clean(m.name, 16) || 'Tamu';
+      let base, key, bkey, guest = false;
+      if (pool) {
+        const au = verify(m.token);
+        if (au) { base = au.u; key = 'u:' + au.u.toLowerCase(); bkey = au.u.toLowerCase(); }
+        else {
+          const gu = verifyGuest(m.token);
+          if (!gu) return send(ws, { t: 'deny', msg: 'Sesi habis, silakan login lagi.' });
+          guest = true; base = gu.n + ' (tamu)'; key = 'g:' + gu.id; bkey = 'n:' + gu.n.toLowerCase();
+        }
+      } else { base = clean(m.name, 16) || 'Tamu'; key = 'n:' + base.toLowerCase(); bkey = base.toLowerCase(); }
       let room = rooms.get(code);
       if (room && room.pw && room.pw !== pw) return send(ws, { t: 'deny', msg: 'Password room salah.' });
-      if (room && room.banned.has(user.toLowerCase())) {
-        const key = user.toLowerCase();
+      if (room && room.banned.has(bkey)) {
         if (ws.pend) return;
-        if ((room.cool.get(key) || 0) > Date.now()) return send(ws, { t: 'deny', msg: 'Host menolak permintaanmu. Coba lagi nanti.' });
+        if ((room.cool.get(bkey) || 0) > Date.now()) return send(ws, { t: 'deny', msg: 'Host menolak permintaanmu. Coba lagi nanti.' });
         if (room.pending.size >= 5) return send(ws, { t: 'deny', msg: 'Terlalu banyak permintaan masuk.' });
-        const id = ++uid; room.pending.set(id, { id, user, ws }); ws.pend = { room, id };
+        const id = ++uid; room.pending.set(id, { id, user: base, bkey, ws }); ws.pend = { room, id };
         send(ws, { t: 'wait' }); askHost(room); return;
       }
       if (!room) {
         room = { code, members: [], host: null, video: null, playing: false, pos: 0, at: Date.now(), prop: null, queue: [], pw, banned: new Set(), chat: [], pending: new Map(), cool: new Map() };
         rooms.set(code, room); stats.rooms++; logEv('room', code);
       }
-      const dup = pool ? room.members.find(c => c.user === user) : null;
+      const dup = pool ? room.members.find(c => c.key === key) : null;
       if (dup) { room.members = room.members.filter(c => c !== dup); if (room.host === dup.id) room.host = null; send(dup.ws, { t: 'replaced' }); dup.ws.close(); }
       if (room.members.length >= MAX) return send(ws, { t: 'deny', msg: 'Room penuh (maks 8 orang).' });
-      me = { id: ++uid, name: user, user, ws, hidden: false }; r = room;
+      let disp = base;
+      if (guest) { let n = 2; while (room.members.some(c => c.name === disp)) disp = base + ' ' + n++; }
+      me = { id: ++uid, name: disp, user: disp, key, bkey, guest, ws, hidden: false }; r = room;
       r.members.push(me); if (!r.host) r.host = me.id;
       stats.joins++; stats.peak = Math.max(stats.peak, onlineNow()); logEv('join', code);
-      send(ws, { t: 'joined', id: me.id, code, pw: room.pw || '' });
+      send(ws, { t: 'joined', id: me.id, code, pw: room.pw || '', name: me.name, guest });
       members(r); if (r.video) send(ws, stateMsg(r));
       send(ws, qmsg(r));
       if (r.chat.length) send(ws, { t: 'history', list: r.chat });
       if (r.prop) send(ws, { t: 'proposal', p: r.prop.pub });
       if (r.host === me.id && r.pending.size) askHost(r);
-      pushHidden(r, me.id, { title: 'Nobar', body: '👋 ' + user + ' bergabung', tag: 'join' });
+      pushHidden(r, me.id, { title: 'Nobar', body: '👋 ' + me.name + ' bergabung', tag: 'join' });
       return;
     }
     if (!r) return;
     if (m.t === 'vis') { me.hidden = !!m.h; return; }
     if (m.t === 'chat') {
+      if (Date.now() - (me.ct || 0) < 400) return; me.ct = Date.now();
       const x = clean(m.text, 300);
       if (x) {
         r.chat.push({ from: me.name, text: x }); if (r.chat.length > 50) r.chat.shift();
@@ -326,6 +351,7 @@ wss.on('connection', ws => {
       return;
     }
     if (m.t === 'invite') {
+      if (me.guest) return send(ws, { t: 'info', msg: 'Undangan hanya untuk akun terdaftar.' });
       if (!pool || !webpush) return send(ws, { t: 'info', msg: 'Undangan belum aktif di server.' });
       const to = clean(m.to, 16).toLowerCase(); if (!to) return;
       if (Date.now() - (me.inv || 0) < 5000) return send(ws, { t: 'info', msg: 'Tunggu sebentar sebelum mengundang lagi.' });
@@ -346,15 +372,15 @@ wss.on('connection', ws => {
       if (r.host !== me.id) return;
       const p = r.pending.get(+m.id); if (!p) return;
       r.pending.delete(p.id); p.ws.pend = null;
-      if (m.ok) { r.banned.delete(p.user.toLowerCase()); send(p.ws, { t: 'approved' }); }
-      else { r.cool.set(p.user.toLowerCase(), Date.now() + 30000); send(p.ws, { t: 'deny', msg: 'Host menolak permintaanmu.' }); }
+      if (m.ok) { r.banned.delete(p.bkey); send(p.ws, { t: 'approved' }); }
+      else { r.cool.set(p.bkey, Date.now() + 30000); send(p.ws, { t: 'deny', msg: 'Host menolak permintaanmu.' }); }
       return;
     }
     if (m.t === 'givehost') { if (r.host === me.id) { const to = r.members.find(c => c.id === m.to); if (to && to !== me) { r.host = to.id; members(r); askHost(r); } } return; }
     if (m.t === 'kick') {
       if (r.host === me.id) {
         const to = r.members.find(c => c.id === m.to);
-        if (to && to !== me) { r.banned.add(to.user.toLowerCase()); send(to.ws, { t: 'kicked' }); setTimeout(() => to.ws.close(), 300); }
+        if (to && to !== me) { r.banned.add(to.bkey); send(to.ws, { t: 'kicked' }); setTimeout(() => to.ws.close(), 300); }
       }
       return;
     }
@@ -401,7 +427,7 @@ wss.on('connection', ws => {
 setInterval(() => wss.clients.forEach(w => { if (w.isAlive) w.miss = 0; else { w.miss = (w.miss || 0) + 1; if (w.miss >= 3) return w.terminate(); } w.isAlive = false; w.ping(); }), 20000);
 server.listen(process.env.PORT || 3000, () => console.log('nobar on', process.env.PORT || 3000));
 require('./wallpaper.js')(server, () => pool, verify, bearer, ipOf, limited);
-require('./turn.js')(server, () => pool, verify, bearer);
+require('./turn.js')(server, () => pool, verifyAny, bearer);
 require('./extras.js')({ server, wss, rooms, send, bcast, apply, getPool: () => pool, verify, bearer, ipOf, limited });
 require('./social.js')({ server, wss, rooms, getPool: () => pool, verify, bearer, ipOf, limited, pushUser });
-require('./extras2.js')({ server, wss, rooms, send, bcast, apply, getPool: () => pool, verify, bearer, ipOf });
+require('./extras2.js')({ server, wss, rooms, send, bcast, apply, getPool: () => pool, verify: verifyAny, bearer, ipOf });
