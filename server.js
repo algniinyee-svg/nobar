@@ -37,7 +37,6 @@ if (process.env.DATABASE_URL) {
 const logEv = (kind, room) => { if (pool) pool.query('INSERT INTO events(kind, room) VALUES ($1, $2)', [kind, room || null]).catch(() => {}); };
 const adminOK = req => process.env.ADMIN_KEY && req.headers['x-admin-key'] === process.env.ADMIN_KEY;
 const onlineNow = () => [...rooms.values()].reduce((a, r) => a + r.members.length, 0);
-/* statistik milik tamu tidak perlu disimpan */
 setInterval(() => { if (pool) pool.query("DELETE FROM user_stats WHERE lname LIKE '% (tamu)%'").catch(() => {}); }, 3600e3);
 
 /* ---------- web push ---------- */
@@ -360,7 +359,7 @@ wss.on('connection', ws => {
         if (!a.rows.length) return send(ws, { t: 'info', msg: 'Username tidak ditemukan.' });
         return pool.query('SELECT 1 FROM push_dev WHERE lname = $1 LIMIT 1', [to]).then(s => {
           if (!s.rows.length) return send(ws, { t: 'info', msg: 'Dia belum mengaktifkan notifikasi push.' });
-          pushUser(to, { title: '📨 Undangan Nobar', body: me.name + ' mengajakmu ke room ' + r.code + (r.pw ? ' · password: ' + r.pw : ''), tag: 'inv', url: '/#' + r.code });
+          pushUser(to, { title: '📨 Undangan Nobar', body: me.name + ' mengajakmu ke room ' + r.code + (r.pw ? ' 🔒' : ''), tag: 'inv', url: '/#' + r.code, inv: { room: r.code, pw: r.pw || '', from: me.name } });
           send(ws, { t: 'info', msg: 'Undangan terkirim ke ' + to });
         });
       }).catch(() => {});
