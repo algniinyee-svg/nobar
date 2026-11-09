@@ -26,9 +26,10 @@ const legacy = round => (u, v) => {
   return [60 + 80 * u, 90 + 60 * v, 230 - 40 * u, 255];
 };
 const fore = (u, v) => { const a = (u - 0.5) / 0.62 + 0.5, b = (v - 0.5) / 0.62 + 0.5; return tri(a, b) ? [255, 255, 255, 255] : [0, 0, 0, 0]; };
+const stat = (u, v) => { const d = Math.hypot(u - 0.5, v - 0.5); return ((d > 0.36 && d < 0.47) || tri(u, v)) ? [255, 255, 255, 255] : [0, 0, 0, 0]; };
 const walk = d => fs.readdirSync(d, { withFileTypes: true }).flatMap(e => e.isDirectory() ? walk(path.join(d, e.name)) : [path.join(d, e.name)]);
 
-/* ---------- 1. izin aplikasi (wajib) ---------- */
+/* ---------- 1. izin & metadata (wajib) ---------- */
 (() => {
   const mf = path.join(MAIN, 'AndroidManifest.xml');
   let x = fs.readFileSync(mf, 'utf8');
@@ -37,8 +38,12 @@ const walk = d => fs.readdirSync(d, { withFileTypes: true }).flatMap(e => e.isDi
   const add = perms.filter(p => !x.includes('android.permission.' + p)).map(p => '    <uses-permission android:name="android.permission.' + p + '" />').join('\n')
     + '\n    <uses-feature android:name="android.hardware.camera" android:required="false" />\n    <uses-feature android:name="android.hardware.microphone" android:required="false" />\n';
   x = x.replace('<application', add + '    <application');
+  const meta = '        <meta-data android:name="com.google.firebase.messaging.default_notification_icon" android:resource="@drawable/ic_stat_nobar" />\n'
+    + '        <meta-data android:name="com.google.firebase.messaging.default_notification_color" android:resource="@color/nobar_notif" />\n'
+    + '        <meta-data android:name="com.google.firebase.messaging.default_notification_channel_id" android:value="nobar" />\n    ';
+  x = x.replace('</application>', meta + '</application>');
   fs.writeFileSync(mf, x);
-  log('izin ditambahkan');
+  log('izin dan metadata ditambahkan');
 })();
 
 /* ---------- 2. kode native (wajib) ---------- */
@@ -70,15 +75,25 @@ public class MainActivity extends BridgeActivity {
 `);
   fs.writeFileSync(path.join(dir, 'NobarNativePlugin.java'), `package ${PKG};
 
+import android.content.ContentResolver;
+import android.content.ContentValues;
+import android.content.Intent;
 import android.content.pm.ActivityInfo;
+import android.net.Uri;
+import android.os.Build;
+import android.os.Environment;
+import android.provider.MediaStore;
+import android.util.Base64;
 import android.view.WindowManager;
 import androidx.core.view.WindowCompat;
 import androidx.core.view.WindowInsetsCompat;
 import androidx.core.view.WindowInsetsControllerCompat;
+import com.getcapacitor.JSObject;
 import com.getcapacitor.Plugin;
 import com.getcapacitor.PluginCall;
 import com.getcapacitor.PluginMethod;
 import com.getcapacitor.annotation.CapacitorPlugin;
+import java.io.OutputStream;
 
 @CapacitorPlugin(name = "NobarNative")
 public class NobarNativePlugin extends Plugin {
@@ -114,12 +129,64 @@ public class NobarNativePlugin extends Plugin {
       on ? ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE : ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED));
     call.resolve();
   }
+
+  private Uri storeImage(PluginCall call) {
+    String b64 = call.getString("data");
+    if (b64 == null || b64.isEmpty()) { call.reject("Data gambar kosong"); return null; }
+    if (Build.VERSION.SDK_INT < 29) { call.reject("Fitur simpan butuh Android 10 ke atas"); return null; }
+    try {
+      byte[] bytes = Base64.decode(b64, Base64.DEFAULT);
+      String name = call.getString("name", "nobar-rekap") + "-" + System.currentTimeMillis() + ".png";
+      ContentValues v = new ContentValues();
+      v.put(MediaStore.Images.Media.DISPLAY_NAME, name);
+      v.put(MediaStore.Images.Media.MIME_TYPE, "image/png");
+      v.put(MediaStore.Images.Media.RELATIVE_PATH, Environment.DIRECTORY_PICTURES + "/Nobar");
+      v.put(MediaStore.Images.Media.IS_PENDING, 1);
+      ContentResolver cr = getContext().getContentResolver();
+      Uri uri = cr.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, v);
+      if (uri == null) throw new Exception("tidak bisa membuat berkas");
+      try (OutputStream os = cr.openOutputStream(uri)) { os.write(bytes); }
+      v.clear();
+      v.put(MediaStore.Images.Media.IS_PENDING, 0);
+      cr.update(uri, v, null, null);
+      return uri;
+    } catch (Exception e) {
+      call.reject("Gagal menyimpan: " + e.getMessage());
+      return null;
+    }
+  }
+
+  @PluginMethod
+  public void saveImage(PluginCall call) {
+    Uri u = storeImage(call);
+    if (u == null) return;
+    JSObject r = new JSObject();
+    r.put("uri", u.toString());
+    call.resolve(r);
+  }
+
+  @PluginMethod
+  public void shareImage(PluginCall call) {
+    Uri u = storeImage(call);
+    if (u == null) return;
+    try {
+      Intent i = new Intent(Intent.ACTION_SEND);
+      i.setType("image/png");
+      i.putExtra(Intent.EXTRA_STREAM, u);
+      i.putExtra(Intent.EXTRA_TEXT, call.getString("text", ""));
+      i.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+      getActivity().startActivity(Intent.createChooser(i, "Bagikan rekap"));
+      call.resolve();
+    } catch (Exception e) {
+      call.reject("Gagal membuka menu berbagi: " + e.getMessage());
+    }
+  }
 }
 `);
   log('kode native ditulis');
 })();
 
-/* ---------- 3. ikon ---------- */
+/* ---------- 3. ikon aplikasi ---------- */
 soft('ikon', () => {
   const dens = { mdpi: [48, 108], hdpi: [72, 162], xhdpi: [96, 216], xxhdpi: [144, 324], xxxhdpi: [192, 432] };
   for (const [d, [s, f]] of Object.entries(dens)) {
@@ -132,7 +199,19 @@ soft('ikon', () => {
   fs.writeFileSync(path.join(RES, 'values', 'ic_launcher_background.xml'), '<?xml version="1.0" encoding="utf-8"?>\n<resources>\n    <color name="ic_launcher_background">#4562E0</color>\n</resources>\n');
 });
 
-/* ---------- 4. layar pembuka ---------- */
+/* ---------- 4. ikon & warna notifikasi (wajib: dipakai metadata manifest) ---------- */
+(() => {
+  const sizes = { mdpi: 24, hdpi: 36, xhdpi: 48, xxhdpi: 72, xxxhdpi: 96 };
+  for (const [d, s] of Object.entries(sizes)) {
+    const dir = path.join(RES, 'drawable-' + d); fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(path.join(dir, 'ic_stat_nobar.png'), draw(s, s, stat));
+  }
+  fs.mkdirSync(path.join(RES, 'values'), { recursive: true });
+  fs.writeFileSync(path.join(RES, 'values', 'nobar_colors.xml'), '<?xml version="1.0" encoding="utf-8"?>\n<resources>\n    <color name="nobar_notif">#4562E0</color>\n</resources>\n');
+  log('ikon notifikasi dibuat');
+})();
+
+/* ---------- 5. layar pembuka ---------- */
 soft('splash', () => {
   walk(RES).filter(f => path.basename(f) === 'splash.png').forEach(file => {
     const b = fs.readFileSync(file);
@@ -150,14 +229,14 @@ soft('splash', () => {
   });
 });
 
-/* ---------- 5. warna bar sistem ---------- */
+/* ---------- 6. warna bar sistem ---------- */
 soft('warna sistem', () => {
   const f = path.join(RES, 'values', 'styles.xml'); let x = fs.readFileSync(f, 'utf8');
   x = x.replace('<item name="android:background">@null</item>', '<item name="android:background">@null</item>\n        <item name="android:statusBarColor">#0B1020</item>\n        <item name="android:navigationBarColor">#0B1020</item>\n        <item name="android:windowLightStatusBar">false</item>');
   fs.writeFileSync(f, x);
 });
 
-/* ---------- 6. nonaktifkan lint rilis (supaya build tidak berhenti karena peringatan) ---------- */
+/* ---------- 7. nonaktifkan lint rilis ---------- */
 soft('lint', () => {
   const f = path.join(ROOT, 'app', 'build.gradle'); let x = fs.readFileSync(f, 'utf8');
   x = x.replace('android {', 'android {\n    lint {\n        checkReleaseBuilds false\n        abortOnError false\n    }');
