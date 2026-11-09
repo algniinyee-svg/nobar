@@ -58,7 +58,8 @@ function dur(){try{return(yt?yt.getDuration():el?el.duration:0)||0}catch(e){retu
 function loadYT(){if(window.YT&&YT.Player){mountYT();return}
  if(document.getElementById('ytapi'))return;const s=document.createElement('script');s.id='ytapi';s.src='https://www.youtube.com/iframe_api';document.head.appendChild(s);
  window.onYouTubeIframeAPIReady=()=>{if(vid&&vid.type==='yt')mountYT()}}
-function clear(){const s=$('stage');if(yt){try{yt.destroy()}catch(e){}yt=null}if(el){el.pause();el=null}s.innerHTML=''}
+function clear(){const s=$('stage');if(yt){try{yt.destroy()}catch(e){}yt=null}if(el){el.pause();el=null}
+ [...s.children].forEach(c=>{if(!c.hasAttribute('data-keep'))c.remove()})}
 function mountYT(){clear();const d=document.createElement('div');d.id='ytp';$('stage').appendChild(d);
  yt=new YT.Player('ytp',{videoId:vid.id,playerVars:{controls:0,disablekb:1,playsinline:1,rel:0,modestbranding:1,fs:0},
   events:{onReady:()=>{if(sync)applyState(sync)},onError:()=>toast('Video tidak bisa diputar')}})}
@@ -92,3 +93,4 @@ function sys(t){add(document.createTextNode(t),'sys')}
 const send=()=>{const t=$('msg').value.trim();if(t&&ws.readyState===1){ws.send(JSON.stringify({t:'chat',text:t}));$('msg').value=''}};
 $('snd').onclick=send;$('msg').onkeydown=e=>{if(e.key==='Enter')send()};
 $('share').onclick=()=>{const u=location.href;(navigator.clipboard?navigator.clipboard.writeText(u):Promise.reject()).then(()=>toast('Link disalin'),()=>prompt('Salin link:',u))};
+window.addEventListener('load',()=>{['sync2.js','subs.js','recap.js'].forEach(s=>{const e=document.createElement('script');e.src=s;e.async=false;document.body.appendChild(e)})});
