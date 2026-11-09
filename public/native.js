@@ -28,6 +28,11 @@ window.nbBack=()=>{
  for(const id of ['ppl','qs']){const e=$(id);if(e&&e.classList.contains('on')){e.classList.remove('on');return true}}
  if($('room').style.display==='flex'){toast('Ketuk tombol Keluar untuk meninggalkan room');return true}
  return false};
+/* ---------- tautan yang membuka aplikasi (App Links) ---------- */
+const AP=C.Plugins&&C.Plugins.App;
+if(AP){
+ try{AP.addListener('appUrlOpen',e=>{if(e&&e.url&&window.nbOpenUrl)window.nbOpenUrl(e.url)})}catch(e){}
+ try{AP.getLaunchUrl().then(r=>{if(r&&r.url&&window.nbOpenUrl)setTimeout(()=>window.nbOpenUrl(r.url),900)}).catch(()=>{})}catch(e){}}
 /* ---------- notifikasi Firebase (FCM) ---------- */
 const PN=()=>C.Plugins&&C.Plugins.PushNotifications;
 const flagKey=()=>'nb-fcm:'+(USER||'').toLowerCase();
