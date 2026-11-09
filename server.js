@@ -39,7 +39,8 @@ const adminOK = req => process.env.ADMIN_KEY && req.headers['x-admin-key'] === p
 const onlineNow = () => [...rooms.values()].reduce((a, r) => a + r.members.length, 0);
 setInterval(() => { if (pool) pool.query("DELETE FROM user_stats WHERE lname LIKE '% (tamu)%'").catch(() => {}); }, 3600e3);
 
-/* ---------- web push ---------- */
+/* ---------- notifikasi: web push + Firebase (FCM) ---------- */
+const fcm = require('./fcm.js')(() => pool);
 const VAPID_PUB = process.env.VAPID_PUBLIC, VAPID_PRIV = process.env.VAPID_PRIVATE;
 let webpush = null;
 if (pool && VAPID_PUB && VAPID_PRIV) {
@@ -47,6 +48,7 @@ if (pool && VAPID_PUB && VAPID_PRIV) {
   catch (e) { console.log('push unavailable:', e.message); webpush = null; }
 }
 async function pushUser(lname, payload) {
+  fcm.send(lname, payload);
   if (!webpush || !pool) return;
   try {
     const r = await pool.query('SELECT endpoint, sub FROM push_dev WHERE lname = $1', [lname]);
@@ -59,9 +61,10 @@ async function pushUser(lname, payload) {
   } catch (e) { console.log('push error:', e.message); }
 }
 async function pushTest(lname) {
-  if (!webpush || !pool) return { devices: 0, ok: 0, errors: ['push belum aktif di server'] };
+  const out = { devices: 0, ok: 0, errors: [] };
+  if (!webpush || !pool) return out;
   const r = await pool.query('SELECT endpoint, sub FROM push_dev WHERE lname = $1', [lname]);
-  const out = { devices: r.rows.length, ok: 0, errors: [] };
+  out.devices = r.rows.length;
   for (const row of r.rows) {
     try {
       await webpush.sendNotification(JSON.parse(row.sub), JSON.stringify({ title: '🔔 Tes Nobar', body: 'Notifikasi push berfungsi!', tag: 'test', url: '/' }), { TTL: 60, urgency: 'high' });
@@ -74,7 +77,7 @@ async function pushTest(lname) {
   return out;
 }
 function pushHidden(r, exceptId, payload, onlyId) {
-  if (!webpush) return;
+  if (!webpush && !fcm.ready()) return;
   const now = Date.now();
   r.members.forEach(c => {
     if (c.id === exceptId || (onlyId && c.id !== onlyId) || !c.hidden || c.guest) return;
@@ -155,7 +158,10 @@ const server = http.createServer(async (req, res) => {
   if (f === '/api/push/test' && req.method === 'POST') {
     const p = verify(bearer(req)); if (!p || !pool) return J(401, { error: 'Login dulu.' });
     if (limited('t' + ipOf(req))) return J(429, { error: 'Terlalu banyak percobaan.' });
-    try { return J(200, await pushTest(p.u.toLowerCase())); } catch (e) { return J(500, { error: 'Server error.' }); }
+    try {
+      const ln = p.u.toLowerCase(), w = await pushTest(ln), g = await fcm.test(ln);
+      return J(200, { devices: w.devices + g.devices, ok: w.ok + g.ok, errors: w.errors.concat(g.errors) });
+    } catch (e) { return J(500, { error: 'Server error.' }); }
   }
   if ((f === '/api/register' || f === '/api/login') && req.method === 'POST') {
     if (!pool) return J(503, { error: 'Akun belum aktif di server ini.' });
@@ -349,22 +355,6 @@ wss.on('connection', ws => {
       }
       return;
     }
-    if (m.t === 'invite') {
-      if (me.guest) return send(ws, { t: 'info', msg: 'Undangan hanya untuk akun terdaftar.' });
-      if (!pool || !webpush) return send(ws, { t: 'info', msg: 'Undangan belum aktif di server.' });
-      const to = clean(m.to, 16).toLowerCase(); if (!to) return;
-      if (Date.now() - (me.inv || 0) < 5000) return send(ws, { t: 'info', msg: 'Tunggu sebentar sebelum mengundang lagi.' });
-      me.inv = Date.now();
-      pool.query('SELECT 1 FROM accounts WHERE lname = $1', [to]).then(a => {
-        if (!a.rows.length) return send(ws, { t: 'info', msg: 'Username tidak ditemukan.' });
-        return pool.query('SELECT 1 FROM push_dev WHERE lname = $1 LIMIT 1', [to]).then(s => {
-          if (!s.rows.length) return send(ws, { t: 'info', msg: 'Dia belum mengaktifkan notifikasi push.' });
-          pushUser(to, { title: '📨 Undangan Nobar', body: me.name + ' mengajakmu ke room ' + r.code + (r.pw ? ' 🔒' : ''), tag: 'inv', url: '/#' + r.code, inv: { room: r.code, pw: r.pw || '', from: me.name } });
-          send(ws, { t: 'info', msg: 'Undangan terkirim ke ' + to });
-        });
-      }).catch(() => {});
-      return;
-    }
     if (m.t === 'sig') { const to = r.members.find(c => c.id === m.to); if (to && m.data) send(to.ws, { t: 'sig', from: me.id, data: m.data }); return; }
     if (m.t === 'mute') { if (r.host === me.id) { const to = r.members.find(c => c.id === m.to); if (to) send(to.ws, { t: 'mute' }); } return; }
     if (m.t === 'joinans') {
@@ -430,4 +420,13 @@ require('./turn.js')(server, () => pool, verifyAny, bearer);
 require('./extras.js')({ server, wss, rooms, send, bcast, apply, getPool: () => pool, verify, bearer, ipOf, limited });
 require('./social.js')({ server, wss, rooms, getPool: () => pool, verify, bearer, ipOf, limited, pushUser });
 require('./extras2.js')({ server, wss, rooms, send, bcast, apply, getPool: () => pool, verify: verifyAny, bearer, ipOf });
-require('./inbox.js')({ wss, rooms, send, verify, getPool: () => pool, pushUser, pushReady: () => !!webpush });
+fcm.attach({ server, verify, bearer });
+require('./inbox.js')({
+  wss, rooms, send, verify, getPool: () => pool, pushUser,
+  canPush: () => !!webpush || fcm.ready(),
+  hasDevice: async ln => {
+    if (!pool) return false;
+    if (webpush) { const r = await pool.query('SELECT 1 FROM push_dev WHERE lname = $1 LIMIT 1', [ln]); if (r.rows.length) return true; }
+    return fcm.has(ln);
+  }
+});
