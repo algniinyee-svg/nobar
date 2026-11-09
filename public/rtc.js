@@ -1,7 +1,7 @@
 (()=>{
 let ICE={iceServers:[{urls:['stun:stun.l.google.com:19302','stun:stun1.l.google.com:19302']}]};
 const $=id=>document.getElementById(id),peers=new Map(),names=new Map(),auds=[],spk=new Set();
-let mic=null,cam=null,ctx=null,list=[],icePromise=null;
+let mic=null,cam=null,ctx=null,list=[],icePromise=null,mw=null;
 const wait=ms=>new Promise(r=>setTimeout(r,ms));
 function loadIce(){if(!icePromise)icePromise=fetch('/api/ice',{headers:{Authorization:'Bearer '+TOKEN}}).then(r=>r.ok?r.json():null)
  .then(j=>{if(j&&Array.isArray(j.iceServers)&&j.iceServers.length)ICE={iceServers:j.iceServers.concat(ICE.iceServers)}}).catch(()=>{});return icePromise}
@@ -96,9 +96,16 @@ function render(){const b=$('plist');if(!b)return;b.innerHTML='';
    mb.onclick=()=>{const v=vol(x.name)>0?0:prev;setVol(x.name,v);rg.value=Math.round(v*100);mb.textContent=v===0?'🔇':'🔊'};
    vl.append(mb,rg);r.append(vl)}
   b.appendChild(r)})}
+/* bersihkan semua sambungan & kotak saat tersambung ulang (nomor peserta berganti) */
+function resetAll(newId){
+ peers.forEach(p=>{try{p.pc.close()}catch(e){}clearInterval(p.w);if(p.au)p.au.remove()});
+ peers.clear();auds.length=0;spk.clear();list=[];tiles.innerHTML='';showTiles();
+ clearInterval(mw);mw=mic?watch(new MediaStream([mic]),newId):null;render()}
 async function onMsg(m){
+ if(m.t==='joined'){resetAll(m.id);return}
  if(m.t==='members'){list=m.list;m.list.forEach(x=>names.set(x.id,x.name));const ids=new Set(m.list.map(x=>x.id));
   m.list.forEach(x=>{if($('t'+x.id)||x.id===me)tile(x.id)});
+  const st0=$('t'+me);if(st0&&cam){const v=st0.querySelector('video');if(!v.srcObject){v.srcObject=new MediaStream([cam]);v.play().catch(()=>{});st0.classList.remove('nov')}}
   peers.forEach((p,id)=>{if(!ids.has(id)){p.pc.close();peers.delete(id);clearInterval(p.w);setSpk(id,false);
    if(p.au){p.au.remove();const i=auds.indexOf(p.au);if(i>-1)auds.splice(i,1)}const t=$('t'+id);if(t)t.remove();showTiles()}});
   render();
@@ -111,14 +118,14 @@ const gum=async c=>{if(!navigator.mediaDevices||!navigator.mediaDevices.getUserM
  try{return await navigator.mediaDevices.getUserMedia(c)}catch(e){toast('Izin mic/kamera ditolak');return null}};
 bm.onclick=async()=>{
  if(!mic){const s=await gum({audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true}});if(!s)return;
-  mic=s.getAudioTracks()[0];peers.forEach(attach);watch(new MediaStream([mic]),me)}
+  mic=s.getAudioTracks()[0];peers.forEach(attach);clearInterval(mw);mw=watch(new MediaStream([mic]),me)}
  else mic.enabled=!mic.enabled;
  micUI()};
 const cs=b=>peers.forEach((p,id)=>sig(id,{cam:b}));
 bc.onclick=async()=>{
  if(!cam){const s=await gum({video:{width:{ideal:240},height:{ideal:180},frameRate:{ideal:15,max:20},facingMode:'user'}});if(!s)return;
   cam=s.getVideoTracks()[0];peers.forEach(attach);const t=tile(me),v=t.querySelector('video');v.srcObject=new MediaStream([cam]);v.play().catch(()=>{});t.classList.remove('nov');bc.classList.add('on');cs(true)}
- else{cam.stop();cam=null;peers.forEach(attach);tile(me).classList.add('nov');bc.classList.remove('on');cs(false)}};
+ else{cam.stop();cam=null;peers.forEach(attach);const t=tile(me);t.classList.add('nov');t.querySelector('video').srcObject=null;bc.classList.remove('on');cs(false)}};
 const pn=document.createElement('div');pn.id='ppl';
 pn.innerHTML='<div class="glass"><b>Peserta</b><div id="plist"></div><button id="pcl" style="width:100%;margin-top:8px">Tutup</button></div>';document.body.appendChild(pn);
 bp.onclick=()=>{render();pn.classList.add('on')};$('pcl').onclick=()=>pn.classList.remove('on');pn.onclick=e=>{if(e.target===pn)pn.classList.remove('on')};
