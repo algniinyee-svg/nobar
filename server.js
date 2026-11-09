@@ -430,3 +430,4 @@ require('./turn.js')(server, () => pool, verifyAny, bearer);
 require('./extras.js')({ server, wss, rooms, send, bcast, apply, getPool: () => pool, verify, bearer, ipOf, limited });
 require('./social.js')({ server, wss, rooms, getPool: () => pool, verify, bearer, ipOf, limited, pushUser });
 require('./extras2.js')({ server, wss, rooms, send, bcast, apply, getPool: () => pool, verify: verifyAny, bearer, ipOf });
+require('./inbox.js')({ wss, rooms, send, verify, getPool: () => pool, pushUser, pushReady: () => !!webpush });
