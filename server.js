@@ -48,10 +48,10 @@ if (pool && VAPID_PUB && VAPID_PRIV) {
   catch (e) { console.log('push unavailable:', e.message); webpush = null; }
 }
 async function pushUser(lname, payload) {
-  /* akun yang punya aplikasi (APK) hanya dikirimi lewat aplikasi, supaya tidak ada notifikasi ganda dari Chrome */
+  /* akun yang punya aplikasi (APK) dikirimi lewat aplikasi dulu; kalau gagal, jatuh ke push Chrome */
   let viaApp = false;
   try { viaApp = await fcm.has(lname); } catch (e) {}
-  if (viaApp) { fcm.send(lname, payload); return; }
+  if (viaApp) { const n = await fcm.send(lname, payload); if (n > 0) return; }
   if (!webpush || !pool) return;
   try {
     const r = await pool.query('SELECT endpoint, sub FROM push_dev WHERE lname = $1', [lname]);
@@ -278,6 +278,7 @@ function askHost(r) {
     pushHidden(r, 0, { title: 'Permintaan masuk', body: p.user + ' ingin masuk lagi', tag: 'jr' }, r.host);
   });
 }
+/* waktu server adalah satu-satunya patokan: jeda memakai posisi server, putar memakai posisi tersimpan */
 function apply(r, a) {
   let qb = false;
   if (a.k === 'load' && a.video) {
@@ -285,9 +286,9 @@ function apply(r, a) {
     const s = JSON.stringify(a.video), i = r.queue.findIndex(q => JSON.stringify(q) === s);
     if (i > -1) { r.queue.splice(i, 1); qb = true; }
   }
-  else if (a.k === 'play') { r.playing = true; r.pos = +a.pos || 0; }
-  else if (a.k === 'pause') { r.playing = false; r.pos = +a.pos || 0; }
-  else if (a.k === 'seek') { r.pos = +a.pos || 0; }
+  else if (a.k === 'play') { if (r.playing) return bcast(r, stateMsg(r)); r.playing = true; }
+  else if (a.k === 'pause') { if (!r.playing) return bcast(r, stateMsg(r)); r.pos = pos(r); r.playing = false; }
+  else if (a.k === 'seek') { r.pos = Math.max(0, +a.pos || 0); }
   else return;
   r.at = Date.now(); bcast(r, stateMsg(r)); if (qb) bcast(r, qmsg(r));
 }
@@ -386,7 +387,7 @@ wss.on('connection', ws => {
       }
       return;
     }
-    if (m.t === 'tick') { if (r.host === me.id && r.playing) { r.pos = +m.pos || 0; r.at = Date.now(); bcast(r, stateMsg(r)); } return; }
+    if (m.t === 'tick') return; /* diabaikan: waktu server tidak boleh ditimpa posisi pemain mana pun */
     if (m.t === 'act') {
       const a = { k: m.k, pos: m.pos, video: m.k === 'load' ? validVideo(m.video) : null };
       if (m.k === 'load' && !a.video) return send(ws, { t: 'err', msg: 'Link tidak valid.' });
