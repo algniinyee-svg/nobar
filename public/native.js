@@ -41,7 +41,7 @@ const setFlag=v=>{LS.s(flagKey(),v?'1':'0');LS.s('nb-p',v?'1':'0')};
 let fcmTok='',inited=false,started=false,pu='\u0000',pTok='',synced='';
 const hdr=t=>({'Content-Type':'application/json',Authorization:'Bearer '+t});
 const post=(u,t,b)=>fetch(u,{method:'POST',headers:hdr(t),body:JSON.stringify(b||{})}).catch(()=>{});
-const pdata=n=>{const d=(n&&n.data)||{};return{title:n.title||d.title||'Nobar',body:n.body||'',tag:d.tag||'',url:d.url||'/',inv:d.room?{room:d.room,pw:d.pw||'',from:d.from||''}:null}};
+const pdata=n=>{const d=(n&&n.data)||{};return{title:n.title||d.title||'Nobar',body:n.body||'',tag:d.tag||'',url:d.url||'/',inv:d.room?{room:d.room,pw:d.pw||'',from:d.frm||d.from||''}:null}};
 async function init(){
  const P=PN();if(!P)throw'Plugin notifikasi tidak tersedia';
  if(inited)return P;inited=true;
