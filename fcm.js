@@ -31,7 +31,8 @@ module.exports = getPool => {
   const str = v => v == null ? '' : String(v);
   async function sendTo(token, p) {
     const data = { tag: str(p.tag), url: str(p.url) };
-    if (p.inv) { data.room = str(p.inv.room); data.pw = str(p.inv.pw); data.from = str(p.inv.from); }
+    /* catatan: kata "from" dicadangkan Firebase, jadi memakai "frm" */
+    if (p.inv) { data.room = str(p.inv.room); data.pw = str(p.inv.pw); data.frm = str(p.inv.from); }
     const body = { message: { token, notification: { title: str(p.title), body: str(p.body) }, data, android: { priority: 'HIGH', ttl: '120s', notification: { channel_id: 'nobar', tag: str(p.tag) || undefined } } } };
     const r = await fetch('https://fcm.googleapis.com/v1/projects/' + sa.project_id + '/messages:send', {
       method: 'POST', headers: { Authorization: 'Bearer ' + await access(), 'Content-Type': 'application/json' }, body: JSON.stringify(body)
@@ -43,16 +44,19 @@ module.exports = getPool => {
     return 'err ' + r.status;
   }
   async function send(lname, p) {
-    if (!ok) return;
-    const pool = getPool(); if (!pool) return;
+    if (!ok) return 0;
+    const pool = getPool(); if (!pool) return 0;
+    let n = 0;
     try {
       await init(pool);
       const r = await pool.query('SELECT token FROM fcm_dev WHERE lname = $1', [lname]);
       for (const row of r.rows) {
         const s = await sendTo(row.token, p).catch(e => { console.log('fcm error:', e.message); return 'err'; });
+        if (s === 'ok') n++;
         if (s === 'dead') pool.query('DELETE FROM fcm_dev WHERE token = $1', [row.token]).catch(() => {});
       }
     } catch (e) {}
+    return n;
   }
   async function test(lname) {
     const out = { devices: 0, ok: 0, errors: [] };
