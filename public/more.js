@@ -6,13 +6,7 @@ const Q={low:{w:160,h:120,f:10,vb:90000,ab:24000,l:'Hemat'},std:{w:240,h:180,f:1
 const cfg={q:Q[LS.g('nb-q')]?LS.g('nb-q'):'std',n:LS.g('nb-n')==='1',v:LS.g('nb-v')!=='0'};
 let roomPw=null,lastIds=null;
 const st=document.createElement('style');st.textContent=`
-.ov{position:fixed;inset:0;z-index:80;background:rgba(5,8,20,.6);display:flex;align-items:center;justify-content:center;padding:16px}
-.sp{width:100%;max-width:380px;padding:18px;max-height:85dvh;overflow:auto;display:grid;gap:10px}
-.sr{display:flex;align-items:center;gap:8px}.sr span{flex:1;word-break:break-all}
-.sp h4{margin:6px 0 0;color:var(--mute);font-size:12px;font-weight:600;letter-spacing:.5px;text-transform:uppercase}
-.sp button{padding:9px 14px}.sp p{margin:0}
-.code{font:700 22px/1.2 ui-monospace,monospace;letter-spacing:2px;text-align:center;padding:14px;border-radius:18px;background:rgba(255,255,255,.12);user-select:all}
-.qrow{display:flex;gap:6px}.qrow button{flex:1;padding:9px 4px}`;
+.code{font:700 22px/1.2 ui-monospace,monospace;letter-spacing:2px;text-align:center;padding:14px;border-radius:18px;background:rgba(8,12,28,.35);box-shadow:inset 0 2px 7px rgba(0,0,0,.4);user-select:all}`;
 document.head.appendChild(st);
 const copy=(t,m,btn)=>{const ok=()=>{toast(m);if(btn){const o=btn.textContent;btn.textContent='✓ Tersalin';setTimeout(()=>btn.textContent=o,1500)}};
  const fb=()=>{try{const a=document.createElement('textarea');a.value=t;a.setAttribute('readonly','');a.style.cssText='position:fixed;top:0;left:0;opacity:0;font-size:16px';document.body.appendChild(a);a.focus();a.select();a.setSelectionRange(0,t.length);const r=document.execCommand('copy');a.remove();if(r)ok();else toast('Gagal menyalin. Tahan teks kode lalu pilih Salin')}catch(e){toast('Gagal menyalin. Tahan teks kode lalu pilih Salin')}};
@@ -61,9 +55,9 @@ function applyNow(){const q=Q[cfg.q];
   try{const pr=s.getParameters();if(!pr.encodings||!pr.encodings.length)pr.encodings=[{}];pr.encodings[0].maxBitrate=k==='video'?q.vb:q.ab;s.setParameters(pr).catch(()=>{})}catch(e){}
   if(k==='video')s.track.applyConstraints({width:{ideal:q.w},height:{ideal:q.h},frameRate:{ideal:q.f,max:q.f+5}}).catch(()=>{})})}catch(e){}})}
 setInterval(()=>{if(pcs.size)applyNow()},6000);
-/* ---------- notifikasi ---------- */
+/* ---------- notifikasi lokal ---------- */
 function notify(t,b,tag){
-if(!document.hidden||!cfg.n||LS.g('nb-p')==='1'||!cfg.n||!('Notification' in window)||Notification.permission!=='granted')return;
+ if(!document.hidden||!cfg.n||LS.g('nb-p')==='1'||!('Notification' in window)||Notification.permission!=='granted')return;
  const o={body:b,tag:tag||'nobar',renotify:true,icon:'/icon-192.png',badge:'/icon-192.png'};if(cfg.v)o.vibrate=[120,60,120];
  const fb=()=>{try{new Notification(t,{body:b,tag:o.tag})}catch(e){}};
  if(navigator.serviceWorker)navigator.serviceWorker.ready.then(r=>r.showNotification(t,o)).catch(fb);else fb()}
@@ -77,29 +71,12 @@ function on(m){
  else if(m.t==='proposal'&&m.p&&m.p.by!==me)notify('Usulan dari '+m.p.name,'ingin '+m.p.label,'prop');
  else if(m.t==='members'){const ids=new Set(m.list.map(x=>x.id));
   if(lastIds)m.list.forEach(x=>{if(!lastIds.has(x.id)&&x.id!==me)notify('Nobar','👋 '+x.name+' bergabung','join'+x.id)});lastIds=ids}}
-/* ---------- panel pengaturan ---------- */
-function openSettings(){modal((g,close)=>{
- g.append(mk('b','Pengaturan'),mk('h4','Info room'));
- const r1=mk('div',0,'sr');r1.append(mk('span','Kode: '+code));
- const r2=mk('div',0,'sr'),pv=mk('span',roomPw?'Password: ••••••':'Tanpa password');r2.append(pv);
- if(roomPw){let sh=false;const t=mk('button','👁'),c=mk('button','Salin');
-  t.onclick=()=>{sh=!sh;pv.textContent='Password: '+(sh?roomPw:'••••••')};c.onclick=()=>copy(roomPw,'Password disalin',c);r2.append(t,c)}
- const inv=mk('button','Salin undangan','pri');
- inv.onclick=()=>copy('Gabung Nobar!\n'+location.origin+'/#'+code+'\nKode room: '+code+(roomPw?'\nPassword: '+roomPw:''),'Undangan disalin', inv);
- g.append(r1,r2,inv,mk('h4','Kualitas suara & video'));
- const qr=mk('div',0,'qrow'),qb={};
- const mark=()=>Object.keys(qb).forEach(k=>qb[k].className=k===cfg.q?'pri':'');
- Object.keys(Q).forEach(k=>{const b=mk('button',Q[k].l);b.onclick=()=>{cfg.q=k;LS.s('nb-q',k);mark();applyNow();toast('Kualitas: '+Q[k].l)};qb[k]=b;qr.appendChild(b)});
- mark();g.append(qr,mk('p','Hemat cocok untuk jaringan lemah. Berlaku ke kamera yang sedang menyala dan ke koneksi baru.','badge'),mk('h4','Notifikasi'));
- const nb=mk('button'),vb=mk('button');
- const lab=()=>{nb.textContent=!('Notification' in window)?'Tidak didukung':cfg.n&&Notification.permission==='granted'?'🔔 Notifikasi: Aktif':'🔕 Notifikasi: Mati';vb.textContent=cfg.v?'📳 Getar: Aktif':'📳 Getar: Mati'};
- nb.onclick=async()=>{if(!('Notification' in window))return toast('Browser tidak mendukung notifikasi');
-  if(Notification.permission==='denied')return toast('Izin diblokir. Aktifkan lewat pengaturan situs di browser');
-  if(Notification.permission!=='granted'){const p=await Notification.requestPermission();if(p!=='granted'){lab();return}cfg.n=true}else cfg.n=!cfg.n;
-  LS.s('nb-n',cfg.n?'1':'0');lab()};
- vb.onclick=()=>{cfg.v=!cfg.v;LS.s('nb-v',cfg.v?'1':'0');lab()};
- lab();g.append(nb,vb,mk('p','Notifikasi muncul saat Nobar di latar belakang (pesan, orang bergabung, permintaan masuk). Kalau aplikasi benar-benar ditutup, notifikasi belum bisa masuk.','badge'));
- const cl=mk('button','Tutup');cl.onclick=close;g.append(cl)})}
-const gp=document.querySelector('.grp'),sb=mk('button','⚙️');sb.style.padding='6px 10px';sb.onclick=openSettings;
-if(gp)gp.insertBefore(sb,$('share'));else $('share').before(sb);
+/* ---------- untuk panel setelan ---------- */
+async function setN(on){
+ if(on){
+  if(!('Notification' in window)){toast('Browser tidak mendukung notifikasi');return false}
+  if(Notification.permission==='denied'){toast('Izin diblokir. Aktifkan lewat pengaturan situs di browser');return false}
+  if(Notification.permission!=='granted'){const p=await Notification.requestPermission();if(p!=='granted')return false}}
+ cfg.n=!!on;LS.s('nb-n',on?'1':'0');return !!on}
+window.nbMore={cfg,Q,copy,pw:()=>roomPw||'',setQ:k=>{if(Q[k]){cfg.q=k;LS.s('nb-q',k);applyNow()}},setN,setV:b=>{cfg.v=!!b;LS.s('nb-v',b?'1':'0')}};
 })();
