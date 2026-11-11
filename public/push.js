@@ -14,24 +14,14 @@ const st=document.createElement('style');st.textContent=`
 .bg{background:radial-gradient(45% 35% at 12% 8%,var(--g1,#4f6bff),transparent 70%),radial-gradient(40% 35% at 95% 28%,var(--g2,#00d4b4cc),transparent 70%),radial-gradient(55% 45% at 30% 100%,var(--g3,#c13bffcc),transparent 70%),radial-gradient(35% 30% at 80% 75%,var(--g4,#ff7a59aa),transparent 70%),var(--bgc,#0b1020)!important}
 .bg::before{background:radial-gradient(closest-side,var(--g1,#5b7bff),transparent)!important}
 .bg::after{background:radial-gradient(closest-side,var(--g3,#c13bff),transparent)!important}
-#join{position:relative}#thbtn{position:absolute;top:10px;right:12px;z-index:5;padding:8px 12px}
-.thr{display:flex;gap:8px;flex-wrap:wrap}.thr button{width:38px;height:38px;padding:0;border-radius:50%;border:2px solid rgba(255,255,255,.25)}
-.thr button.on{border-color:#fff;box-shadow:0 0 0 2px rgba(255,255,255,.3)}
-.ov{position:fixed;inset:0;z-index:80;background:rgba(5,8,20,.6);display:flex;align-items:center;justify-content:center;padding:16px}
-.sp{width:100%;max-width:380px;padding:18px;max-height:85dvh;overflow:auto;display:grid;gap:10px}
-.sp h4{margin:6px 0 0;color:var(--mute);font-size:12px;font-weight:600;letter-spacing:.5px;text-transform:uppercase}.sp p{margin:0}.sp button{padding:9px 14px}`;
+#join{position:relative}#thbtn{position:absolute;top:10px;right:12px;z-index:5;padding:8px 12px}`;
 document.head.appendChild(st);
 function applyTheme(k){const t=TH[k]||TH.aurora,s=document.documentElement.style;
  t.g.forEach((c,i)=>s.setProperty('--g'+(i+1),c));s.setProperty('--bgc',t.b);s.setProperty('--acc',t.a);
  document.body.style.background=t.b;const m=document.querySelector('meta[name=theme-color]');if(m)m.content=t.b;LS.s('nb-th',k)}
 applyTheme(TH[LS.g('nb-th')]?LS.g('nb-th'):'aurora');
-function themeRow(){const r=mk('div',0,'thr');
- const mark=()=>[...r.children].forEach(b=>b.classList.toggle('on',b.dataset.k===LS.g('nb-th')));
- Object.keys(TH).forEach(k=>{const b=mk('button');b.dataset.k=k;b.title=TH[k].n;b.style.background='linear-gradient(135deg,'+TH[k].g[0]+','+TH[k].g[2]+')';
-  b.onclick=()=>{applyTheme(k);mark()};r.appendChild(b)});mark();return r}
-const tb=mk('button','🎨');tb.id='thbtn';tb.onclick=()=>{const o=mk('div',0,'ov'),g=mk('div',0,'glass sp');
- g.append(mk('b','Tema warna'),themeRow());const c=mk('button','Tutup');c.onclick=()=>o.remove();g.appendChild(c);o.appendChild(g);o.onclick=e=>{if(e.target===o)o.remove()};document.body.appendChild(o)};
-$('join').appendChild(tb);
+window.nbTheme={TH,get:()=>TH[LS.g('nb-th')]?LS.g('nb-th'):'aurora',set:applyTheme};
+const tb=mk('button','🎨');tb.id='thbtn';$('join').appendChild(tb);
 /* ---------- push (per akun) ---------- */
 const b64=s=>{const p='='.repeat((4-s.length%4)%4),d=atob((s+p).replace(/-/g,'+').replace(/_/g,'/'));return Uint8Array.from([...d].map(c=>c.charCodeAt(0)))};
 const supported=()=>'serviceWorker' in navigator&&'PushManager' in window&&'Notification' in window;
@@ -73,27 +63,5 @@ const OW=window.WebSocket;
 window.WebSocket=function(u,p){const w=new OW(u,p);w.addEventListener('message',e=>{try{const m=JSON.parse(e.data);
  if(m.t==='joined')setTimeout(vis,300);else if(m.t==='info'){const s=$('nbst');if(s)s.textContent=m.msg;toast(m.msg)}}catch(x){}});return w};
 window.WebSocket.prototype=OW.prototype;
-function extras(g){if(!g)return;const end=g.lastElementChild,add=(...n)=>n.forEach(x=>g.insertBefore(x,end));
- add(mk('h4','Tema warna'),themeRow(),mk('h4','Push & undangan'));
- const pb=mk('button'),tt=mk('button','🧪 Tes notifikasi'),sp=mk('p','','badge');sp.id='nbst';const say=t=>{sp.textContent=t};
- const lab=()=>{pb.textContent=!supported()?'Push tidak didukung':isOn()?'🔔 Push notifikasi: Aktif':'🔕 Push notifikasi: Mati'};
- let busy=false;
- pb.onclick=async()=>{if(busy)return;busy=true;pb.disabled=true;say('Memproses…');
-  try{if(isOn()){await pushOff();say('Push dimatikan untuk akun ini di perangkat ini.')}else{await pushOn();say('✅ Push aktif. Ketuk "Tes notifikasi" untuk mencoba.')}}
-  catch(e){say('⚠️ '+(typeof e==='string'?e:'Gagal mengaktifkan push'))}
-  busy=false;pb.disabled=false;lab()};
- tt.onclick=async()=>{if(!TOKEN)return say('Login dulu');tt.disabled=true;say('Mengirim tes…');
-  try{const r=await fetch('/api/push/test',{method:'POST',headers:hdr(TOKEN)}),j=await r.json();
-   if(!r.ok)say('⚠️ '+(j.error||'Gagal'));
-   else if(!j.devices)say('⚠️ Belum ada perangkat terdaftar untuk akunmu. Nyalakan push dulu.');
-   else if(j.ok)say('✅ Terkirim ke '+j.ok+' dari '+j.devices+' perangkat'+(j.errors.length?' (gagal: '+j.errors.join(', ')+')':'')+'. Notifikasi seharusnya muncul.');
-   else say('⚠️ Gagal terkirim ke '+j.devices+' perangkat (kode: '+j.errors.join(', ')+'). Nyalakan ulang push.')}
-  catch(e){say('⚠️ Tidak bisa terhubung ke server')}tt.disabled=false};
- lab();
- const ir=mk('div');ir.style.cssText='display:flex;gap:8px';const iu=mk('input');iu.placeholder='Username teman';iu.maxLength=16;iu.autocapitalize='none';iu.autocomplete='off';iu.style.cssText='flex:1;min-width:0';
- const ib=mk('button','Undang','pri');ib.onclick=()=>{const u=iu.value.trim();if(!u)return say('Isi username teman');try{ws.send(JSON.stringify({t:'invite',to:u}));say('Mengirim undangan…')}catch(e){say('Tidak terhubung ke server')}iu.value=''};
- ir.append(iu,ib);
- add(pb,tt,ir,sp,mk('p','Push dicatat per akun dan per perangkat. Undangan masuk walau Nobar ditutup. Pesan dan aktivitas room masuk selama Nobar masih berjalan di latar belakang.','badge'))}
-new MutationObserver(ms=>ms.forEach(m=>m.addedNodes.forEach(n=>{if(n.nodeType===1&&n.classList&&n.classList.contains('ov')&&/Pengaturan/.test(n.textContent))extras(n.querySelector('.sp'))}))).observe(document.body,{childList:true});
 window.nbPush={on:pushOn,off:pushOff,isOn,supported};
 })();
