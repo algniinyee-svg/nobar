@@ -11,11 +11,11 @@ const st=document.createElement('style');st.textContent=`
 #stage{position:sticky;top:0;z-index:6}
 .xb{position:absolute;top:10px;right:10px;z-index:5;width:34px;height:34px;padding:0!important;border-radius:50%;font-size:15px;line-height:1;display:grid;place-items:center}
 .sp,#ppl>.glass,#qs>.glass{position:relative;padding-top:50px!important}
-#apkbtn{display:none;width:100%;max-width:380px;margin-top:14px;text-decoration:none;text-align:center;padding:13px 16px;border-radius:999px;font-weight:700;color:var(--ink);border:1px solid rgba(255,255,255,.3)}
+#apkbtn{display:none;width:100%;max-width:380px;margin-top:14px;text-decoration:none;text-align:center;padding:13px 16px;border-radius:999px;font-weight:700;color:var(--acc-ink);border:1px solid rgba(255,255,255,.3)}
 html.lite .bg::before,html.lite .bg::after{animation:none!important;display:none!important}
 html.lite .glass{-webkit-backdrop-filter:blur(8px)!important;backdrop-filter:blur(8px)!important}
 html.lite input,html.lite button{-webkit-backdrop-filter:none!important;backdrop-filter:none!important}
-html.perf .glass{-webkit-backdrop-filter:none!important;backdrop-filter:none!important;background:rgba(28,36,70,.9)!important}`;
+html.perf .glass{-webkit-backdrop-filter:none!important;backdrop-filter:none!important;background:rgba(22,26,38,.92)!important}`;
 document.head.appendChild(st);
 /* ---------- mode performa ---------- */
 const mode=()=>LS.g('nb-perf')||'auto';
@@ -27,19 +27,12 @@ function applyPerf(){const m=mode(),r=inRoom();
 setInterval(applyPerf,800);applyPerf();
 setInterval(()=>{if(document.hidden||!inRoom()||mode()!=='auto')return;let n=0,t0=0;
  const f=t=>{if(!t0)t0=t;n++;if(t-t0<2500)requestAnimationFrame(f);else if(n*1000/(t-t0)<22)LS.s('nb-slow','1')};requestAnimationFrame(f)},30000);
-function perfRow(g){const end=g.lastElementChild,row=mk('div');row.style.cssText='display:flex;gap:6px';
- const mark=()=>[...row.children].forEach(b=>b.className=b.dataset.m===mode()?'pri':'');
- [['auto','Otomatis'],['lite','Ringan'],['full','Penuh']].forEach(([k,l])=>{const b=mk('button',l);b.dataset.m=k;b.style.cssText='flex:1;padding:9px 4px';
-  b.onclick=()=>{LS.s('nb-perf',k);if(k==='auto')LS.s('nb-slow','0');mark();applyPerf()};row.appendChild(b)});mark();
- g.insertBefore(mk('h4','Performa'),end);g.insertBefore(row,end);
- g.insertBefore(mk('p','Ringan mematikan animasi dan blur supaya HP yang berat tetap lancar. Otomatis memilihnya sendiri di dalam room.','badge'),end)}
 /* ---------- tombol ✕ di sudut jendela melayang ---------- */
 function addX(panel,close){if(!panel||panel.querySelector(':scope>.xb'))return;
  const x=mk('button','✕','xb');x.setAttribute('aria-label','Tutup');x.onclick=close;panel.prepend(x);
  panel.querySelectorAll('button').forEach(b=>{if(b!==x&&b.textContent.trim()==='Tutup')b.style.display='none'})}
 new MutationObserver(ms=>ms.forEach(m=>m.addedNodes.forEach(n=>{
- if(n.nodeType===1&&n.classList&&n.classList.contains('ov')){const p=n.querySelector('.sp')||n.firstElementChild;addX(p,()=>n.remove());
-  if(/Pengaturan/.test(n.textContent))perfRow(p)}}))).observe(document.body,{childList:true});
+ if(n.nodeType===1&&n.classList&&n.classList.contains('ov')){const p=n.querySelector('.sp')||n.firstElementChild;addX(p,()=>n.remove())}}))).observe(document.body,{childList:true});
 try{if($('ppl')&&$('pcl'))addX($('ppl').firstElementChild,()=>$('pcl').click())}catch(e){}
 try{if($('qs')&&$('qc'))addX($('qs').firstElementChild,()=>$('qc').click())}catch(e){}
 /* ---------- tombol unduh APK di halaman awal ---------- */
