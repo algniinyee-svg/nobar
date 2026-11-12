@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="id"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="theme-color" content="#0b1020">
+<meta name="theme-color" content="#05070c">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -9,44 +9,37 @@
 <link rel="apple-touch-icon" href="/icon-192.png"><link rel="manifest" href="/manifest.json">
 <title>Nobar</title>
 <style>
-:root{--ink:#f4f7ff;--mute:#b4bedb;--glass:rgba(255,255,255,.12);--edge:rgba(255,255,255,.28);--acc:#7fd6ff}
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{height:100%;margin:0}
-body{font:15px/1.4 system-ui,-apple-system,Roboto,sans-serif;color:var(--ink);background:#0b1020;overflow:hidden;overscroll-behavior:none;
+body{font:15px/1.4 system-ui,-apple-system,Roboto,sans-serif;color:#f3f6ff;background:#05070c;overflow:hidden;overscroll-behavior:none;
 padding:env(safe-area-inset-top) 0 env(safe-area-inset-bottom)}
-.bg{position:fixed;inset:0;z-index:-1;overflow:hidden;background:radial-gradient(45% 35% at 12% 8%,#4f6bff,transparent 70%),radial-gradient(40% 35% at 95% 28%,#00d4b4cc,transparent 70%),radial-gradient(55% 45% at 30% 100%,#c13bffcc,transparent 70%),radial-gradient(35% 30% at 80% 75%,#ff7a59aa,transparent 70%),#0b1020}
-.bg::before,.bg::after{content:"";position:absolute;width:70vmax;height:70vmax;border-radius:50%;opacity:.45;animation:dr 18s ease-in-out infinite alternate}
-.bg::before{left:-30vmax;top:-20vmax;background:radial-gradient(closest-side,#5b7bff,transparent)}
-.bg::after{right:-35vmax;bottom:-25vmax;background:radial-gradient(closest-side,#c13bff,transparent);animation-delay:-9s}
-@keyframes dr{to{transform:translate(12vmax,10vmax)}}
-@keyframes bob{50%{transform:translateY(-8px)}}
+.bg{position:fixed;inset:0;z-index:-1;overflow:hidden}
+@keyframes bob{50%{transform:translateY(-6px)}}
 html,body,#join,#room{height:100dvh}
-.glass{border-radius:28px}
-input,button{font:inherit;color:var(--ink);border-radius:999px;padding:12px 16px;outline:none}
-input{font-size:16px;-webkit-appearance:none;appearance:none}
-input::placeholder{color:var(--mute)}
-button{cursor:pointer;font-weight:600;font-size:15px}button:disabled{opacity:.4}
-.lnk{background:none;border:0;box-shadow:none;color:var(--acc);padding:4px 8px;font-size:14px}
-#hi{margin:0;color:var(--mute);text-align:left}#hi b{color:var(--ink)}
+input,button{font:inherit;border-radius:999px;padding:12px 16px;outline:none}
+input{font-size:16px;min-height:46px;-webkit-appearance:none;appearance:none}
+button{cursor:pointer;font-weight:600;font-size:15px;min-height:36px}
+.lnk{padding:4px 8px;font-size:14px;min-height:0}
+#hi{margin:0;color:#9aa6c2;text-align:left}#hi b{color:#f3f6ff}
 #join{display:flex;flex-direction:column;align-items:center;padding:20px;text-align:center}
 .hero{flex:1;width:100%;max-width:380px;display:flex;flex-direction:column;align-items:center;justify-content:center}
-.logo{width:92px;height:92px;display:grid;place-items:center;margin-bottom:12px;animation:bob 5s ease-in-out infinite}
+.logo{width:92px;height:92px;display:grid;place-items:center;margin-bottom:12px;animation:bob 6s ease-in-out infinite}
 .logo svg{width:50px;height:50px}
-h1{font-size:46px;font-weight:800;letter-spacing:-1.5px;margin:0;background:linear-gradient(135deg,#fff,#9be7ff 45%,#c9a8ff);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;color:transparent}
-.sub{color:var(--mute);margin:6px 0 0}
+h1{font-size:46px;margin:0}
+.sub{color:#9aa6c2;margin:6px 0 0}
 .card{width:100%;padding:20px;gap:12px;margin-top:20px}
 .chips{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin-top:18px}
-.chips span{font-size:12px;padding:6px 12px;border-radius:999px;border:1px solid rgba(255,255,255,.16);color:var(--mute)}
-#ioshint{display:none;font-size:12px;color:var(--mute);margin:12px 0 0}
-footer{padding:10px 0 6px;font-size:12px;color:var(--mute);letter-spacing:.3px}footer b{color:var(--ink)}
+.chips span{font-size:12px;padding:6px 12px;border-radius:999px}
+#ioshint{display:none;font-size:12px;color:#9aa6c2;margin:12px 0 0}
+footer{padding:10px 0 6px;font-size:12px;color:#9aa6c2;letter-spacing:.3px}footer b{color:#f3f6ff}
 #room{display:none;flex-direction:column;gap:10px;padding:10px;max-width:640px;margin:0 auto}
 .top{display:flex;align-items:center;justify-content:space-between;padding:8px 12px;gap:8px}
 .tl{display:flex;align-items:center;gap:10px;min-width:0}.tl>div{line-height:1.25;min-width:0}.tl .badge{display:block}
 #leave{padding:7px 12px;font-size:13px}
-.top b{letter-spacing:2px}.badge{font-size:12px;color:var(--mute)}
-#stage{position:relative;aspect-ratio:16/9;background:#000;border-radius:28px;overflow:hidden;border:1px solid var(--edge);box-shadow:0 14px 44px rgba(0,0,0,.4)}
+.top b{letter-spacing:2px}.badge{font-size:12px}
+#stage{position:relative;aspect-ratio:16/9;background:#000;border-radius:28px;overflow:hidden}
 #stage>*{position:absolute;inset:0;width:100%;height:100%;border:0}
-#empty{display:flex;align-items:center;justify-content:center;color:var(--mute);text-align:center;padding:16px}
+#empty{display:flex;align-items:center;justify-content:center;color:#9aa6c2;text-align:center;padding:16px}
 .ctl{display:flex;gap:8px;align-items:center;padding:8px 10px}
 .ctl input[type=range]{flex:1}
 .row{display:flex;gap:8px;padding:0 2px}.row input{flex:1;min-width:0}
@@ -54,23 +47,23 @@ footer{padding:10px 0 6px;font-size:12px;color:var(--mute);letter-spacing:.3px}f
 #chat{flex:1;min-height:0;display:flex;flex-direction:column;padding:10px}
 #msgs{flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:6px;padding-bottom:8px;-webkit-overflow-scrolling:touch}
 .m{max-width:85%;padding:7px 12px;border-radius:18px;word-break:break-word}
-.m small{display:block;color:var(--mute);font-size:11px}.m.me{align-self:flex-end}
-.m.sys{align-self:center;background:none;box-shadow:none;color:var(--mute);font-size:12px}
-#toast{position:fixed;left:50%;top:calc(env(safe-area-inset-top,0px) + 14px);transform:translateX(-50%);background:rgba(20,26,48,.95);border:1px solid var(--edge);padding:8px 16px;border-radius:999px;display:none;z-index:99;max-width:90vw;text-align:center}
-#stage>#unm{display:none;z-index:5;width:auto;height:auto;inset:auto auto 10px 50%;transform:translateX(-50%);background:rgba(20,26,48,.9);padding:8px 14px}
+.m small{display:block;font-size:11px}.m.me{align-self:flex-end}
+.m.sys{align-self:center;background:none;border:0;box-shadow:none;color:#9aa6c2;font-size:12px}
+#toast{position:fixed;left:50%;top:calc(env(safe-area-inset-top,0px) + 14px);transform:translateX(-50%);padding:8px 16px;border-radius:999px;display:none;z-index:99;max-width:90vw;text-align:center}
+#stage>#unm{display:none;z-index:5;width:auto;height:auto;inset:auto auto 10px 50%;transform:translateX(-50%);padding:8px 14px}
 @media(prefers-reduced-motion:reduce){*{animation:none!important}}
 </style>
 <script src="glass.js"></script>
 </head><body><div class="bg"></div><div id="toast"></div>
 <div id="join"><div class="hero">
-<div class="logo glass"><svg viewBox="0 0 64 64"><defs><linearGradient id="lg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#9be7ff"/><stop offset="1" stop-color="#b79bff"/></linearGradient></defs><circle cx="32" cy="32" r="29" fill="none" stroke="url(#lg)" stroke-width="3"/><path d="M26 19l21 13-21 13z" fill="url(#lg)"/></svg></div>
+<div class="logo glass"><svg viewBox="0 0 64 64"><defs><linearGradient id="lg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#9be7ff"/><stop offset="1" stop-color="#7fd6ff"/></linearGradient></defs><circle cx="32" cy="32" r="29" fill="none" stroke="url(#lg)" stroke-width="3"/><path d="M26 19l21 13-21 13z" fill="url(#lg)"/></svg></div>
 <h1>Nobar</h1><p class="sub">Nonton bareng, ngobrol bareng.<br>Satu room untuk 8 orang.</p>
 <div class="glass card" id="acard" style="display:none">
 <input id="au" placeholder="Username" maxlength="16" autocomplete="username" autocapitalize="none" autocorrect="off">
 <input id="ap" type="password" placeholder="Password" maxlength="64" autocomplete="current-password">
 <button class="pri" id="ab">Masuk</button><button class="lnk" id="at">Belum punya akun? Daftar</button><button class="lnk" id="gt">Masuk sebagai tamu (tanpa akun)</button></div>
 <div class="glass card" id="gcard" style="display:none">
-<p style="margin:0;color:var(--mute);text-align:left">Masuk cepat tanpa akun, cocok kalau kamu diundang teman.</p>
+<p style="margin:0;color:#9aa6c2;text-align:left">Masuk cepat tanpa akun, cocok kalau kamu diundang teman.</p>
 <input id="gn" placeholder="Nama panggilan" maxlength="16" autocomplete="off">
 <button class="pri" id="gb">Lanjut sebagai tamu</button>
 <p class="badge" style="margin:0;text-align:left">Tamu tidak bisa memakai push, foto profil, jadwal, dan lencana.</p>
