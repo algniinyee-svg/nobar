@@ -29,11 +29,21 @@ module.exports = getPool => {
     return tok;
   }
   const str = v => v == null ? '' : String(v);
+  /* kunci yang dicadangkan Firebase tidak boleh dipakai di data: from, notification, message_type, collapse_key, gcm*, google* */
+  const RESERVED = /^(notification|message_type|collapse_key|gcm.*|google.*)$/i;
+  function cleanData(o) {
+    const d = {};
+    Object.keys(o).forEach(k => {
+      let n = /^from$/i.test(k) ? 'frm' : k;
+      if (RESERVED.test(n)) return;
+      d[n] = str(o[k]);
+    });
+    return d;
+  }
   async function sendTo(token, p) {
-    const data = { tag: str(p.tag), url: str(p.url) };
-    /* catatan: kata "from" dicadangkan Firebase, jadi memakai "frm" */
-    if (p.inv) { data.room = str(p.inv.room); data.pw = str(p.inv.pw); data.frm = str(p.inv.from); }
-    const body = { message: { token, notification: { title: str(p.title), body: str(p.body) }, data, android: { priority: 'HIGH', ttl: '120s', notification: { channel_id: 'nobar', tag: str(p.tag) || undefined } } } };
+    const raw = { tag: str(p.tag), url: str(p.url) };
+    if (p.inv) { raw.room = str(p.inv.room); raw.pw = str(p.inv.pw); raw.frm = str(p.inv.from); }
+    const body = { message: { token, notification: { title: str(p.title), body: str(p.body) }, data: cleanData(raw), android: { priority: 'HIGH', ttl: '120s', notification: { channel_id: 'nobar', tag: str(p.tag) || undefined } } } };
     const r = await fetch('https://fcm.googleapis.com/v1/projects/' + sa.project_id + '/messages:send', {
       method: 'POST', headers: { Authorization: 'Bearer ' + await access(), 'Content-Type': 'application/json' }, body: JSON.stringify(body)
     });
