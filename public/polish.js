@@ -15,4 +15,6 @@ footer{color:#c6d0e6!important;text-shadow:0 1px 8px rgba(0,0,0,.7)}
 .chips span{background:rgba(10,14,24,.5)!important;color:#d6deef!important}
 .seat::after{display:none!important}`;
 document.head.appendChild(st);
+/* ---------- Fase 4: tampilan Room ---------- */
+const rm=document.createElement('script');rm.src='room.js';rm.async=false;document.body.appendChild(rm);
 })();
