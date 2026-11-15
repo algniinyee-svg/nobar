@@ -49,9 +49,9 @@ body{background:transparent!important}
 /* ---------- navigasi Home ---------- */
 #join{padding-bottom:calc(98px + env(safe-area-inset-bottom,0px))!important}
 #hpbtn,#scbtn,#trbtn,#avbtn,#wpbtn,#thbtn{display:none!important}
-.nbnav{position:fixed;left:50%;bottom:calc(12px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);width:min(92vw,400px);z-index:70;display:grid;grid-template-columns:repeat(5,1fr);padding:4px;border-radius:999px;overflow:hidden;isolation:isolate;transition:transform .38s cubic-bezier(.2,.8,.2,1),opacity .25s}
+.nbnav{position:fixed;left:50%;bottom:calc(12px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);width:min(92vw,400px);z-index:70;display:grid;grid-template-columns:repeat(5,1fr);padding:4px;border-radius:999px;overflow:hidden;isolation:isolate;touch-action:pan-y;-webkit-user-select:none;user-select:none;transition:transform .38s cubic-bezier(.2,.8,.2,1),opacity .25s}
 .nbnav.hide{transform:translate(-50%,150%);opacity:0;pointer-events:none}
-.nav-indicator{position:absolute;top:4px;bottom:4px;left:0;width:0;z-index:1;pointer-events:none;will-change:transform,width;border-radius:9999px;background:linear-gradient(135deg,rgba(255,255,255,.15) 0%,rgba(255,255,255,.05) 100%);border:1px solid rgba(255,255,255,.3);box-shadow:inset 0 1px 1px rgba(255,255,255,.4),0 4px 15px rgba(0,0,0,.2);transition:transform .4s cubic-bezier(.25,1,.5,1),width .4s cubic-bezier(.25,1,.5,1)}
+.nav-indicator{position:absolute;top:4px;bottom:4px;left:0;width:0;z-index:1;pointer-events:auto;cursor:grab;touch-action:none;will-change:transform,width;border-radius:9999px;background:linear-gradient(135deg,rgba(255,255,255,.15) 0%,rgba(255,255,255,.05) 100%);border:1px solid rgba(255,255,255,.3);box-shadow:inset 0 1px 1px rgba(255,255,255,.4),0 4px 15px rgba(0,0,0,.2);transition:transform .4s cubic-bezier(.25,1,.5,1),width .4s cubic-bezier(.25,1,.5,1)}
 .nbn{position:relative;z-index:2;display:flex!important;flex-direction:column;align-items:center;justify-content:center;gap:2px;padding:8px 0 7px;min-height:54px;background:none!important;border:0!important;box-shadow:none!important;outline:0!important;-webkit-tap-highlight-color:transparent;border-radius:999px;color:#9aa6c2;font-size:11px!important;font-weight:600;transition:color .2s ease!important}
 .nbn>*{position:relative;z-index:2}
 .nbn svg{width:22px;height:22px}
@@ -96,27 +96,105 @@ const click=id=>{const e=$(id);if(e)e.click()};
 const btns=items.map(([k,l,i],n)=>{
  const b=mk('button',0,'nbn nav-item');b.type='button';b.setAttribute('aria-label',l);
  b.appendChild(svg(i));b.appendChild(mk('span',l));b.onclick=()=>selectTab(n,k);nav.appendChild(b);return b});
-let active=0;
+let active=0,pillX=0;
+function markActive(n){
+ active=n;
+ btns.forEach((b,j)=>{
+  b.classList.toggle('on',j===n);
+  b.setAttribute('aria-current',j===n?'page':'false')});
+}
 function movePill(n,instant){
  const pill=nav.querySelector('.nav-indicator'),b=btns[n];
  if(!pill||!b)return;
  const pos=b.offsetLeft,width=b.offsetWidth;
  if(instant)pill.style.transition='none';
+ pillX=pos;
  pill.style.transform='translateX('+pos+'px)';
  pill.style.width=width+'px';
  if(instant){void pill.offsetWidth;pill.style.removeProperty('transition')}
 }
-function activate(n,instant){
- active=n;
- btns.forEach((b,j)=>{
-  b.classList.toggle('on',j===n);
-  b.setAttribute('aria-current',j===n?'page':'false')});
- movePill(n,instant)}
+function activate(n,instant){markActive(n);movePill(n,instant)}
 function selectTab(n,k){
  activate(n);closeAll();
  requestAnimationFrame(()=>movePill(n));
  if(k==='home'){join.scrollTo&&join.scrollTo(0,0);return}
  if(k==='sched')click('scbtn');else if(k==='rank')click('trbtn');else if(k==='theme')click('thbtn');else profile()}
+const drag={on:false,moved:false,x0:0,y0:0,left:0,w:0};
+let suppressClick=false,suppressTimer=0;
+function currentPillX(pill){
+ if(!pill)return pillX;
+ const t=getComputedStyle(pill).transform;
+ if(!t||t==='none')return pillX;
+ const m=t.match(/matrix(3d)?\(([^)]+)\)/);
+ if(!m)return pillX;
+ const v=m[2].split(',').map(Number),x=m[1]?v[12]:v[4];
+ return isNaN(x)?pillX:x;
+}
+function clampX(x,w){
+ const first=btns[0],last=btns[btns.length-1];
+ return Math.max(first.offsetLeft,Math.min(x,last.offsetLeft+last.offsetWidth-w));
+}
+function nearestIndex(x,w){
+ const center=x+w/2;
+ let idx=0,best=Infinity;
+ btns.forEach((b,i)=>{
+  const d=Math.abs(b.offsetLeft+b.offsetWidth/2-center);
+  if(d<best){best=d;idx=i}});
+ return idx;
+}
+function snapPill(n){
+ const pill=nav.querySelector('.nav-indicator');
+ if(pill){pill.style.removeProperty('transition');void pill.offsetWidth}
+ movePill(n);
+}
+function endDrag(e){
+ if(!drag.on)return;
+ drag.on=false;
+ if(!drag.moved)return;
+ e.preventDefault();
+ const pill=nav.querySelector('.nav-indicator');
+ const w=drag.w||(pill?pill.offsetWidth:0);
+ const idx=nearestIndex(pillX,w);
+ markActive(idx);
+ snapPill(idx);
+ suppressClick=true;
+ clearTimeout(suppressTimer);
+ suppressTimer=setTimeout(()=>{suppressClick=false},350);
+}
+nav.addEventListener('touchstart',e=>{
+ if(e.touches.length!==1)return;
+ const t=e.touches[0],pill=nav.querySelector('.nav-indicator');
+ drag.on=true;drag.moved=false;
+ drag.x0=t.clientX;drag.y0=t.clientY;
+ drag.left=pillX;drag.w=pill?pill.offsetWidth:0;
+},{passive:true});
+nav.addEventListener('touchmove',e=>{
+ if(!drag.on||e.touches.length!==1)return;
+ const t=e.touches[0],dx=t.clientX-drag.x0,dy=t.clientY-drag.y0;
+ if(!drag.moved){
+  if(Math.abs(dx)<6||Math.abs(dx)<=Math.abs(dy))return;
+  drag.moved=true;
+  const pill=nav.querySelector('.nav-indicator');
+  drag.left=currentPillX(pill);pillX=drag.left;
+  drag.x0=t.clientX;
+  if(pill){pill.style.transition='none';pill.style.transform='translateX('+drag.left+'px)';drag.w=pill.offsetWidth}
+ }
+ e.preventDefault();
+ const pill=nav.querySelector('.nav-indicator');
+ const w=drag.w||(pill?pill.offsetWidth:0);
+ const x=clampX(drag.left+(t.clientX-drag.x0),w);
+ pillX=x;
+ if(pill)pill.style.transform='translateX('+x+'px)';
+ const idx=nearestIndex(x,w);
+ if(idx!==active)markActive(idx);
+},{passive:false});
+nav.addEventListener('touchend',endDrag);
+nav.addEventListener('touchcancel',endDrag);
+nav.addEventListener('click',e=>{
+ if(!suppressClick)return;
+ suppressClick=false;clearTimeout(suppressTimer);
+ e.preventDefault();e.stopPropagation();
+},true);
 join.appendChild(nav);activate(0,true);
 requestAnimationFrame(()=>movePill(active,true));
 window.addEventListener('load',()=>activate(active,true));

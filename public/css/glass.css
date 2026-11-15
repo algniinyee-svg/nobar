@@ -10,6 +10,9 @@ body .nbnav {
     inset 0 -1px 0 rgba(0, 0, 0, 0.35),
     var(--nb-glass-shadow) !important;
   overflow: hidden;
+  touch-action: pan-y;
+  -webkit-user-select: none;
+  user-select: none;
   isolation: isolate;
 }
 
@@ -35,7 +38,9 @@ body .nav-indicator {
   bottom: 4px;
   left: 0;
   z-index: 1;
-  pointer-events: none;
+  pointer-events: auto;
+  cursor: grab;
+  touch-action: none;
   will-change: transform, width;
   border-radius: 9999px;
   background: linear-gradient(
