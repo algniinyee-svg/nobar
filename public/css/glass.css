@@ -1,4 +1,4 @@
-.nbnav {
+body .nbnav {
   border-radius: var(--nb-radius-nav) !important;
   border: 1px solid var(--nb-glass-line) !important;
   background:
@@ -12,7 +12,7 @@
   isolation: isolate;
 }
 
-.nbnav::after {
+body .nbnav::after {
   content: "";
   position: absolute;
   inset: 0;
@@ -28,7 +28,7 @@
   transition: opacity 0.25s ease;
 }
 
-.nbnav-t {
+body .nbnav-t {
   z-index: 1 !important;
   border: 1px solid rgba(127, 214, 255, 0.46) !important;
   background: linear-gradient(
@@ -41,7 +41,7 @@
     0 6px 18px -8px rgba(60, 160, 230, 0.65) !important;
 }
 
-.nbn {
+body .nbn {
   z-index: 2 !important;
   color: var(--nb-text-3);
   transition:
@@ -49,11 +49,11 @@
     transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
-.nbn.on {
+body .nbn.on {
   color: var(--nb-ink);
 }
 
-.top.glass {
+body .top.glass {
   position: relative;
   isolation: isolate;
   border-radius: var(--nb-radius-bar) !important;
@@ -68,7 +68,7 @@
     var(--nb-glass-shadow) !important;
 }
 
-.top.glass::after {
+body .top.glass::after {
   content: "";
   position: absolute;
   inset: 0;
@@ -83,7 +83,7 @@
   opacity: 0.75;
 }
 
-.top.glass > * {
+body .top.glass > * {
   position: relative;
   z-index: 1;
 }
@@ -96,43 +96,43 @@
 }
 
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
-  .nbnav,
-  .top.glass {
+  body .nbnav,
+  body .top.glass {
     background: var(--nb-glass-fallback) !important;
     -webkit-backdrop-filter: none !important;
     backdrop-filter: none !important;
   }
 }
 
-html.nb-glass-none .nbnav,
-html.nb-glass-none .top.glass {
+html.nb-glass-none body .nbnav,
+html.nb-glass-none body .top.glass {
   background: var(--nb-glass-fallback) !important;
   -webkit-backdrop-filter: none !important;
   backdrop-filter: none !important;
 }
 
-html.lite .nbnav,
-html.lite .top.glass {
+html.lite body .nbnav,
+html.lite body .top.glass {
   -webkit-backdrop-filter: blur(8px) saturate(1.2) !important;
   backdrop-filter: blur(8px) saturate(1.2) !important;
 }
 
-html.perf .nbnav,
-html.perf .top.glass {
+html.perf body .nbnav,
+html.perf body .top.glass {
   -webkit-backdrop-filter: none !important;
   backdrop-filter: none !important;
   background: var(--nb-glass-fallback) !important;
 }
 
-html[data-nb-theme="light"] .nbn {
+html[data-nb-theme="light"] body .nbn {
   color: var(--nb-text-2);
 }
 
-html[data-nb-theme="light"] .nbn.on {
+html[data-nb-theme="light"] body .nbn.on {
   color: var(--nb-ink);
 }
 
-html[data-nb-theme="light"] .nbnav-t {
+html[data-nb-theme="light"] body .nbnav-t {
   border-color: rgba(60, 150, 210, 0.45) !important;
   background: linear-gradient(
     180deg,
@@ -142,9 +142,9 @@ html[data-nb-theme="light"] .nbnav-t {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .nbnav::after,
-  .top.glass::after,
-  .nbn {
+  body .nbnav::after,
+  body .top.glass::after,
+  body .nbn {
     transition: none !important;
   }
 }
