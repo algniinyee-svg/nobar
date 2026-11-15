@@ -1,6 +1,6 @@
 (()=>{
 const $=id=>document.getElementById(id);
-const stage=$('stage'),ctl=document.querySelector('#room .ctl');
+const stage=$('stage'),ctl=document.querySelector('#room .ctl')||document.querySelector('#stage>.ctl');
 if(!stage||!ctl)return;
 const IC={
  play:'<path d="M7 4.5v15a1 1 0 0 0 1.5.9l12-7.5a1 1 0 0 0 0-1.8l-12-7.5A1 1 0 0 0 7 4.5z" fill="#000" stroke="none"/>',
@@ -38,7 +38,11 @@ const css=`
 #stage:not(.nbhide)>#unm{inset:auto auto 66px 50%!important}
 #stage:not(.nbhide)>#cbtn{inset:auto 12px 68px auto!important}
 #stage:not(.nbhide)>#cine{inset:auto 12px 122px 12px!important}
-#stage>#crow{z-index:14!important}
+/* kolom ketik chat layar penuh: tepat di atas bar kontrol (atau di dasar kalau bar tersembunyi) */
+#stage>#crow{z-index:14!important;inset:auto 12px 60px 12px!important}
+#stage.nbhide>#crow{inset:auto 12px 12px 12px!important}
+#stage.pfs>#crow,#stage:fullscreen>#crow,#stage:-webkit-full-screen>#crow{bottom:calc(60px + env(safe-area-inset-bottom,0px))!important}
+#stage.nbhide.pfs>#crow,#stage.nbhide:fullscreen>#crow,#stage.nbhide:-webkit-full-screen>#crow{bottom:calc(12px + env(safe-area-inset-bottom,0px))!important}
 #stage.pfs>.ctl,#stage:fullscreen>.ctl,#stage:-webkit-full-screen>.ctl{left:12px!important;right:12px!important;bottom:calc(10px + env(safe-area-inset-bottom,0px))!important}
 /* ---------- mode hemat ---------- */
 html.lite #stage>.ctl,html.lite #stage>#cpp{-webkit-backdrop-filter:blur(6px)!important;backdrop-filter:blur(6px)!important}
@@ -67,8 +71,10 @@ function keepTools(){
 /* tampil/sembunyi otomatis */
 setInterval(()=>{
  keepTools();
+ const co=$('crow'),typing=!!(co&&co.style.display!=='none'&&co.style.display!=='');
+ if(typing)bump();
  const has=typeof vid!=='undefined'&&!!vid,pl=typeof playing!=='undefined'&&playing,drag=typeof dragging!=='undefined'&&dragging;
- const hide=has&&pl&&!drag&&Date.now()-last>3200;
+ const hide=has&&pl&&!drag&&!typing&&Date.now()-last>3200;
  stage.classList.toggle('nbhide',!!hide);
  stage.classList.toggle('nbhas',has);
  cpp.dataset.s=pl?'pause':'play';
