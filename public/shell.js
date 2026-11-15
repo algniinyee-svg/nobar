@@ -51,8 +51,8 @@ body{background:transparent!important}
 #hpbtn,#scbtn,#trbtn,#avbtn,#wpbtn,#thbtn{display:none!important}
 .nbnav{position:fixed;left:50%;bottom:calc(12px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);width:min(92vw,400px);z-index:70;display:grid;grid-template-columns:repeat(5,1fr);padding:4px;border-radius:999px;transition:transform .38s cubic-bezier(.2,.8,.2,1),opacity .25s}
 .nbnav.hide{transform:translate(-50%,150%);opacity:0;pointer-events:none}
-.nbnav-t{position:absolute;top:4px;bottom:4px;left:4px;width:calc((100% - 8px)/5);border-radius:999px;pointer-events:none;background:linear-gradient(180deg,rgba(127,214,255,.3),rgba(127,214,255,.14));border:1px solid rgba(127,214,255,.42);box-shadow:inset 0 1px 0 rgba(255,255,255,.4),0 6px 16px -8px rgba(60,160,230,.6);transform:translateX(calc(var(--i,0) * 100%));transition:transform .5s cubic-bezier(.34,1.56,.64,1)}
-.nbn{position:relative;z-index:1;display:flex!important;flex-direction:column;align-items:center;justify-content:center;gap:2px;padding:8px 0 7px;min-height:54px;background:none!important;border:0!important;box-shadow:none!important;border-radius:999px;color:#9aa6c2;font-size:11px!important;font-weight:600}
+.nav-indicator{position:absolute;top:4px;bottom:4px;left:0;width:0;z-index:1;pointer-events:none;border-radius:9999px;background:rgba(77,240,255,.15);border:1px solid #4DF0FF;box-shadow:0 0 15px rgba(77,240,255,.3);transition:transform .35s cubic-bezier(.25,1,.5,1),width .35s cubic-bezier(.25,1,.5,1)}
+.nbn{position:relative;z-index:2;display:flex!important;flex-direction:column;align-items:center;justify-content:center;gap:2px;padding:8px 0 7px;min-height:54px;background:none!important;border:0!important;box-shadow:none!important;border-radius:999px;color:#9aa6c2;font-size:11px!important;font-weight:600}
 .nbn svg{width:22px;height:22px}
 .nbn.on{color:#fff}
 .nbn:active{transform:scale(.92)}
@@ -88,19 +88,30 @@ function sheet(o){
 new MutationObserver(ms=>ms.forEach(m=>m.addedNodes.forEach(n=>{if(n.nodeType===1&&n.classList&&n.classList.contains('ov'))sheet(n)}))).observe(document.body,{childList:true});
 /* ---------- navigasi kaca mengambang ---------- */
 const join=$('join');
-const nav=mk('div',0,'nbnav glass'),th=mk('div',0,'nbnav-t');nav.appendChild(th);
+const nav=mk('div',0,'nbnav glass'),ind=mk('div',0,'nav-indicator');nav.appendChild(ind);
 const items=[['home','Beranda','home'],['sched','Jadwal','calendar'],['rank','Peringkat','trophy'],['prof','Profil','user'],['theme','Tema','palette']];
 const closeAll=()=>document.querySelectorAll('.ov').forEach(e=>e.remove());
 const click=id=>{const e=$(id);if(e)e.click()};
 const btns=items.map(([k,l,i],n)=>{
  const b=mk('button',0,'nbn');b.type='button';b.setAttribute('aria-label',l);
  b.appendChild(svg(i));b.appendChild(mk('span',l));b.onclick=()=>pick(n,k);nav.appendChild(b);return b});
-function setActive(n){nav.style.setProperty('--i',n);btns.forEach((b,j)=>b.classList.toggle('on',j===n))}
+let active=0;
+function moveIndicator(n){
+ const b=btns[n];if(!b)return;
+ ind.style.transform='translateX('+b.offsetLeft+'px)';
+ ind.style.width=b.offsetWidth+'px'}
+function setActive(n){
+ active=n;
+ btns.forEach((b,j)=>b.classList.toggle('on',j===n));
+ moveIndicator(n)}
 function pick(n,k){
  setActive(n);closeAll();
  if(k==='home'){join.scrollTo&&join.scrollTo(0,0);return}
  if(k==='sched')click('scbtn');else if(k==='rank')click('trbtn');else if(k==='theme')click('thbtn');else profile()}
 join.appendChild(nav);setActive(0);
+requestAnimationFrame(()=>moveIndicator(active));
+addEventListener('resize',()=>moveIndicator(active));
+if(window.ResizeObserver)new ResizeObserver(()=>moveIndicator(active)).observe(nav);
 let rv=0;
 new MutationObserver(()=>{clearTimeout(rv);rv=setTimeout(()=>{if(!document.querySelector('.ov'))setActive(0)},160)}).observe(document.body,{childList:true});
 let kb=false;
