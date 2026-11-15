@@ -52,7 +52,7 @@ body{background:transparent!important}
 .nbnav{position:fixed;left:50%;bottom:calc(12px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);width:min(92vw,400px);z-index:70;display:grid;grid-template-columns:repeat(5,1fr);padding:4px;border-radius:999px;transition:transform .38s cubic-bezier(.2,.8,.2,1),opacity .25s}
 .nbnav.hide{transform:translate(-50%,150%);opacity:0;pointer-events:none}
 .nav-indicator{position:absolute;top:4px;bottom:4px;left:0;width:0;z-index:1;pointer-events:none;border-radius:9999px;background:rgba(77,240,255,.15);border:1px solid #4DF0FF;box-shadow:0 0 15px rgba(77,240,255,.3);transition:transform .35s cubic-bezier(.25,1,.5,1),width .35s cubic-bezier(.25,1,.5,1)}
-.nbn{position:relative;z-index:2;display:flex!important;flex-direction:column;align-items:center;justify-content:center;gap:2px;padding:8px 0 7px;min-height:54px;background:none!important;border:0!important;box-shadow:none!important;border-radius:999px;color:#9aa6c2;font-size:11px!important;font-weight:600}
+.nbn{position:relative;z-index:2;display:flex!important;flex-direction:column;align-items:center;justify-content:center;gap:2px;padding:8px 0 7px;min-height:54px;background:none!important;border:0!important;box-shadow:none!important;outline:0;-webkit-tap-highlight-color:transparent;border-radius:999px;color:#9aa6c2;font-size:11px!important;font-weight:600}
 .nbn svg{width:22px;height:22px}
 .nbn.on{color:#fff}
 .nbn:active{transform:scale(.92)}
@@ -96,10 +96,13 @@ const btns=items.map(([k,l,i],n)=>{
  const b=mk('button',0,'nbn');b.type='button';b.setAttribute('aria-label',l);
  b.appendChild(svg(i));b.appendChild(mk('span',l));b.onclick=()=>pick(n,k);nav.appendChild(b);return b});
 let active=0;
-function moveIndicator(n){
+function moveIndicator(n,instant){
  const b=btns[n];if(!b)return;
+ if(instant)ind.style.transition='none';
  ind.style.transform='translateX('+b.offsetLeft+'px)';
- ind.style.width=b.offsetWidth+'px'}
+ ind.style.width=b.offsetWidth+'px';
+ if(instant){void ind.offsetWidth;ind.style.transition=''}
+}
 function setActive(n){
  active=n;
  btns.forEach((b,j)=>b.classList.toggle('on',j===n));
@@ -108,12 +111,10 @@ function pick(n,k){
  setActive(n);closeAll();
  if(k==='home'){join.scrollTo&&join.scrollTo(0,0);return}
  if(k==='sched')click('scbtn');else if(k==='rank')click('trbtn');else if(k==='theme')click('thbtn');else profile()}
-join.appendChild(nav);setActive(0);
-requestAnimationFrame(()=>moveIndicator(active));
-addEventListener('resize',()=>moveIndicator(active));
-if(window.ResizeObserver)new ResizeObserver(()=>moveIndicator(active)).observe(nav);
-let rv=0;
-new MutationObserver(()=>{clearTimeout(rv);rv=setTimeout(()=>{if(!document.querySelector('.ov'))setActive(0)},160)}).observe(document.body,{childList:true});
+join.appendChild(nav);setActive(0);moveIndicator(0,true);
+requestAnimationFrame(()=>moveIndicator(active,true));
+addEventListener('resize',()=>moveIndicator(active,true));
+if(window.ResizeObserver)new ResizeObserver(()=>moveIndicator(active,true)).observe(nav);
 let kb=false;
 document.addEventListener('focusin',e=>{if(e.target&&e.target.tagName==='INPUT')kb=true});
 document.addEventListener('focusout',()=>setTimeout(()=>{kb=!!(document.activeElement&&document.activeElement.tagName==='INPUT')},120));
