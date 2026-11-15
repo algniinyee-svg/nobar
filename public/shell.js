@@ -90,7 +90,9 @@ new MutationObserver(ms=>ms.forEach(m=>m.addedNodes.forEach(n=>{if(n.nodeType===
 /* ---------- navigasi kaca mengambang ---------- */
 const join=$('join');
 const nav=mk('div',0,'nbnav glass'),ind=mk('div',0,'nav-indicator');nav.appendChild(ind);
-const items=[['home','Beranda','home'],['sched','Jadwal','calendar'],['rank','Peringkat','trophy'],['prof','Profil','user'],['theme','Tema','palette']];
+const items=[['page-beranda','Beranda','home'],['page-jadwal','Jadwal','calendar'],['page-peringkat','Peringkat','trophy'],['page-profil','Profil','user'],['page-tema','Tema','palette']];
+const PAGES=items.map(([id])=>id);
+let currentPage='';
 const closeAll=()=>document.querySelectorAll('.ov').forEach(e=>e.remove());
 const click=id=>{const e=$(id);if(e)e.click()};
 const btns=items.map(([k,l,i],n)=>{
@@ -114,11 +116,20 @@ function movePill(n,instant){
  if(instant){void pill.offsetWidth;pill.style.removeProperty('transition')}
 }
 function activate(n,instant){markActive(n);movePill(n,instant)}
-function selectTab(n,k){
- activate(n);closeAll();
- requestAnimationFrame(()=>movePill(n));
- if(k==='home'){join.scrollTo&&join.scrollTo(0,0);return}
- if(k==='sched')click('scbtn');else if(k==='rank')click('trbtn');else if(k==='theme')click('thbtn');else profile()}
+function switchPage(pageId){
+ const n=items.findIndex(it=>it[0]===pageId);
+ if(n<0)return;
+ if(currentPage===pageId){const el=$(pageId);if(el)el.scrollTop=0;return}
+ currentPage=pageId;
+ activate(n);
+ closeAll();
+ PAGES.forEach(id=>{const el=$(id);if(el)el.classList.toggle('on',id===pageId)});
+ const el=$(pageId);if(el)el.scrollTop=0;
+ const key=pageId.replace('page-','');
+ if(window.nbPages&&typeof window.nbPages[key]==='function')window.nbPages[key]();
+}
+function selectTab(n,page){switchPage(page)}
+window.nbSwitchPage=switchPage;
 const drag={on:false,moved:false,x0:0,y0:0,left:0,w:0};
 let suppressClick=false,suppressTimer=0;
 function currentPillX(pill){
@@ -157,6 +168,7 @@ function endDrag(e){
  const idx=nearestIndex(pillX,w);
  markActive(idx);
  snapPill(idx);
+ switchPage(items[idx][0]);
  suppressClick=true;
  clearTimeout(suppressTimer);
  suppressTimer=setTimeout(()=>{suppressClick=false},350);
@@ -195,7 +207,7 @@ nav.addEventListener('click',e=>{
  suppressClick=false;clearTimeout(suppressTimer);
  e.preventDefault();e.stopPropagation();
 },true);
-join.appendChild(nav);activate(0,true);
+join.appendChild(nav);switchPage('page-beranda');movePill(0,true);
 requestAnimationFrame(()=>movePill(active,true));
 window.addEventListener('load',()=>activate(active,true));
 window.addEventListener('resize',()=>movePill(active,true));
@@ -203,21 +215,23 @@ if(window.ResizeObserver)new ResizeObserver(()=>movePill(active,true)).observe(n
 let kb=false;
 document.addEventListener('focusin',e=>{if(e.target&&e.target.tagName==='INPUT')kb=true});
 document.addEventListener('focusout',()=>setTimeout(()=>{kb=!!(document.activeElement&&document.activeElement.tagName==='INPUT')},120));
-setInterval(()=>{const login=$('acard').style.display!=='none'||$('gcard').style.display!=='none';nav.classList.toggle('hide',login||kb)},400);
-/* ---------- lembar profil ---------- */
+setInterval(()=>nav.classList.toggle('hide',kb),400);
+/* ---------- halaman profil ---------- */
 function profile(){
- const o=mk('div',0,'ov'),g=mk('div',0,'glass sp');o.appendChild(g);
+ const g=$('page-profil-body');if(!g)return;
+ g.innerHTML='';
  const nm=USER||(GUEST?GUEST+' (tamu)':'Belum masuk');
  const av=mk('div',(nm[0]||'?').toUpperCase(),'pfa'),hd=mk('div',0,'pfh'),tx=mk('div');
  tx.append(mk('b',nm),mk('small',USER?'Akun terdaftar':GUEST?'Masuk sebagai tamu':'Silakan masuk'));hd.append(av,tx);g.appendChild(hd);
  if(USER)fetch('/api/avatar',{headers:{Authorization:'Bearer '+TOKEN}}).then(async r=>{if(r.ok){av.style.backgroundImage='url("'+URL.createObjectURL(await r.blob())+'")';av.textContent=''}}).catch(()=>{});
- const go=id=>{o.remove();click(id)};
+ const go=id=>click(id);
  const act=(l,fn,pri)=>{const b=mk('button',l,pri?'pri':'');b.onclick=fn;return b};
  const {row,group,sec}=window.NB;
  g.append(sec('Profil'),group(
   row('Foto profil','Tampil di kursi bioskop',act('Ubah',()=>go('avbtn'))),
   row('Wallpaper','Latar halaman utama',act('Ubah',()=>go('wpbtn'))),
   row('Notifikasi','Undangan dan pengingat',act('Atur',()=>go('hpbtn')))),
-  sec('Akun'),group(row(USER||GUEST?'Ganti akun':'Masuk',USER||GUEST?'Keluar dari sesi ini':'Masuk atau daftar',act(USER||GUEST?'Keluar':'Masuk',()=>{o.remove();click('lo');activate(0)},true))));
- o.onclick=e=>{if(e.target===o)o.remove()};document.body.appendChild(o)}
+  sec('Akun'),group(row(USER||GUEST?'Ganti akun':'Masuk',USER||GUEST?'Keluar dari sesi ini':'Masuk atau daftar',act(USER||GUEST?'Keluar':'Masuk',()=>{click('lo');switchPage('page-beranda')},true))));
+}
+window.nbPages=Object.assign(window.nbPages||{},{profil:profile});
 })();

@@ -7,8 +7,16 @@ function modal(title,build){
  build(g,()=>o.remove());o.onclick=e=>{if(e.target===o)o.remove()};document.body.appendChild(o)}
 const swatches=()=>{const nt=window.nbTheme;return Object.keys(nt.TH).map(k=>({v:k,l:nt.TH[k].n,dot:'linear-gradient(135deg,'+nt.TH[k].g[0]+','+nt.TH[k].g[2]+')'}))};
 /* ---------- tema di halaman utama ---------- */
+function renderTema(){
+ const g=$('page-tema-body');if(!g)return;
+ g.innerHTML='';
+ const nt=window.nbTheme;if(!nt)return;
+ g.appendChild(seg(swatches(),nt.get(),k=>nt.set(k),{sw:true}));
+ g.appendChild(mk('p','Warna dipakai untuk aksen dan cahaya latar aplikasi.','badge'));
+}
 const tb=$('thbtn');
-if(tb)tb.onclick=()=>modal('Tema warna',g=>{const nt=window.nbTheme;g.appendChild(seg(swatches(),nt.get(),k=>nt.set(k),{sw:true}))});
+if(tb)tb.onclick=()=>{if(window.nbSwitchPage)window.nbSwitchPage('page-tema');else renderTema()};
+window.nbPages=Object.assign(window.nbPages||{},{tema:renderTema});
 /* ---------- setelan di dalam room ---------- */
 function openSettings(){modal('Setelan',g=>{
  const M=window.nbMore,nt=window.nbTheme,P=window.nbPush,pw=M.pw(),APP=!!window.NB_APP;

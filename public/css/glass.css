@@ -90,6 +90,76 @@ body .nbn.on {
   color: var(--nb-ink);
 }
 
+body #join {
+  padding: 0 !important;
+  text-align: left;
+  align-items: stretch;
+}
+
+body .nb-page {
+  display: none;
+  flex: 1;
+  width: 100%;
+  min-height: 100vh;
+  min-height: 100dvh;
+  flex-direction: column;
+  gap: 12px;
+  padding: 20px;
+  padding-bottom: calc(112px + env(safe-area-inset-bottom, 0px));
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  text-align: left;
+}
+
+body .nb-page.on {
+  display: flex;
+  animation: nbPageIn 0.3s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+@keyframes nbPageIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+body #page-beranda {
+  align-items: center;
+  text-align: center;
+}
+
+body .nb-page-head,
+body .nb-page-body {
+  width: 100%;
+  max-width: 520px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+body .nb-page-head h2 {
+  margin: 4px 0 2px;
+  font-size: 26px;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+}
+
+body .nb-page-head p {
+  margin: 0;
+  color: var(--nb-text-3);
+  font-size: 13px;
+}
+
+body .nb-page-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
 body .top.glass {
   position: relative;
   isolation: isolate;
@@ -179,5 +249,8 @@ html[data-nb-theme="light"] body .nav-indicator {
   body .nav-indicator,
   body .nbn {
     transition: none !important;
+  }
+  body .nb-page.on {
+    animation: none !important;
   }
 }
