@@ -33,13 +33,14 @@ const css=`
 #nbprog i{display:block;height:100%;width:0;background:#7fd6ff}
 #stage.nbhide.nbhas>#nbprog{opacity:1}
 /* ---------- elemen lain menyesuaikan ---------- */
+#stage #empty{padding-bottom:64px!important}
 #stage:not(.nbhide)>#sub{inset:auto 5% 64px 5%!important}
 #stage:not(.nbhide)>#unm{inset:auto auto 66px 50%!important}
 #stage:not(.nbhide)>#cbtn{inset:auto 12px 68px auto!important}
 #stage:not(.nbhide)>#cine{inset:auto 12px 122px 12px!important}
 #stage>#crow{z-index:14!important}
 #stage.pfs>.ctl,#stage:fullscreen>.ctl,#stage:-webkit-full-screen>.ctl{left:12px!important;right:12px!important;bottom:calc(10px + env(safe-area-inset-bottom,0px))!important}
-/* ---------- mode hemat: tanpa blur di atas video ---------- */
+/* ---------- mode hemat ---------- */
 html.lite #stage>.ctl,html.lite #stage>#cpp{-webkit-backdrop-filter:blur(6px)!important;backdrop-filter:blur(6px)!important}
 html.perf #stage>.ctl,html.perf #stage>#cpp{-webkit-backdrop-filter:none!important;backdrop-filter:none!important;background:rgba(16,20,32,.88)!important}
 @media(prefers-reduced-motion:reduce){#stage>.ctl,#stage>#cpp,#stage>#nbprog{transition:none}}`;
@@ -58,8 +59,14 @@ stage.addEventListener('click',e=>{
  if(!e.target||e.target.id!=='shield')return;
  if(stage.classList.contains('nbhide'))bump();
  else if(typeof playing!=='undefined'&&playing)last=0});
+/* bar alat (Sinkron, CC, Rekap) harus selalu berada tepat di atas baris link, di luar area video */
+function keepTools(){
+ const t=window.nbTools,u=$('url'),row=u&&u.parentNode;
+ if(!t||!row||!row.parentNode)return;
+ if(!t.isConnected||t.parentNode!==row.parentNode||t.nextElementSibling!==row)row.parentNode.insertBefore(t,row)}
 /* tampil/sembunyi otomatis */
 setInterval(()=>{
+ keepTools();
  const has=typeof vid!=='undefined'&&!!vid,pl=typeof playing!=='undefined'&&playing,drag=typeof dragging!=='undefined'&&dragging;
  const hide=has&&pl&&!drag&&Date.now()-last>3200;
  stage.classList.toggle('nbhide',!!hide);
