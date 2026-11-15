@@ -49,13 +49,14 @@ body{background:transparent!important}
 /* ---------- navigasi Home ---------- */
 #join{padding-bottom:calc(98px + env(safe-area-inset-bottom,0px))!important}
 #hpbtn,#scbtn,#trbtn,#avbtn,#wpbtn,#thbtn{display:none!important}
-.nbnav{position:fixed;left:50%;bottom:calc(12px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);width:min(92vw,400px);z-index:70;display:grid;grid-template-columns:repeat(5,1fr);padding:4px;border-radius:999px;transition:transform .38s cubic-bezier(.2,.8,.2,1),opacity .25s}
+.nbnav{position:fixed;left:50%;bottom:calc(12px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);width:min(92vw,400px);z-index:70;display:grid;grid-template-columns:repeat(5,1fr);padding:4px;border-radius:999px;overflow:hidden;isolation:isolate;transition:transform .38s cubic-bezier(.2,.8,.2,1),opacity .25s}
 .nbnav.hide{transform:translate(-50%,150%);opacity:0;pointer-events:none}
-.nav-indicator{position:absolute;top:4px;bottom:4px;left:0;width:0;z-index:1;pointer-events:none;will-change:transform,width;border-radius:9999px;background:rgba(77,240,255,.15);border:1px solid #4DF0FF;box-shadow:0 0 15px rgba(77,240,255,.3);transition:transform .35s cubic-bezier(.25,1,.5,1),width .35s cubic-bezier(.25,1,.5,1)!important}
+.nav-indicator{position:absolute;top:4px;bottom:4px;left:0;width:0;z-index:1;pointer-events:none;will-change:transform,width;border-radius:9999px;background:linear-gradient(135deg,rgba(255,255,255,.15) 0%,rgba(255,255,255,.05) 100%);border:1px solid rgba(255,255,255,.3);box-shadow:inset 0 1px 1px rgba(255,255,255,.4),0 4px 15px rgba(0,0,0,.2);transition:transform .4s cubic-bezier(.25,1,.5,1),width .4s cubic-bezier(.25,1,.5,1)}
 .nbn{position:relative;z-index:2;display:flex!important;flex-direction:column;align-items:center;justify-content:center;gap:2px;padding:8px 0 7px;min-height:54px;background:none!important;border:0!important;box-shadow:none!important;outline:0!important;-webkit-tap-highlight-color:transparent;border-radius:999px;color:#9aa6c2;font-size:11px!important;font-weight:600;transition:color .2s ease!important}
+.nbn>*{position:relative;z-index:2}
 .nbn svg{width:22px;height:22px}
 .nbn.on{color:#fff}
-#join .nbnav .nbn,#join .nbnav .nbn:hover,#join .nbnav .nbn:focus,#join .nbnav .nbn:focus-visible,#join .nbnav .nbn:active,#join .nbnav .nbn.on,#join .nbnav .nbn.active{background:transparent!important;border:0!important;outline:0!important;box-shadow:none!important}
+#join .nbnav .nbn,#join .nbnav .nbn:hover,#join .nbnav .nbn:focus,#join .nbnav .nbn:focus-visible,#join .nbnav .nbn:active,#join .nbnav .nbn.on,#join .nbnav .nbn.active,#join .nbnav .nav-item.active{background:transparent!important;border:0!important;outline:0!important;box-shadow:none!important}
 /* ---------- lembar profil ---------- */
 .pfh{display:flex;align-items:center;gap:14px;padding:4px 2px 8px}
 .pfa{width:64px;height:64px;border-radius:50%;flex:none;background:rgba(255,255,255,.1) center/cover no-repeat;border:2px solid rgba(255,255,255,.3);display:grid;place-items:center;font-size:26px;font-weight:700}
@@ -93,30 +94,34 @@ const items=[['home','Beranda','home'],['sched','Jadwal','calendar'],['rank','Pe
 const closeAll=()=>document.querySelectorAll('.ov').forEach(e=>e.remove());
 const click=id=>{const e=$(id);if(e)e.click()};
 const btns=items.map(([k,l,i],n)=>{
- const b=mk('button',0,'nbn');b.type='button';b.setAttribute('aria-label',l);
- b.appendChild(svg(i));b.appendChild(mk('span',l));b.onclick=()=>pick(n,k);nav.appendChild(b);return b});
+ const b=mk('button',0,'nbn nav-item');b.type='button';b.setAttribute('aria-label',l);
+ b.appendChild(svg(i));b.appendChild(mk('span',l));b.onclick=()=>selectTab(n,k);nav.appendChild(b);return b});
 let active=0;
-function moveIndicator(n,instant){
- const b=btns[n];if(!b||!ind)return;
- const x=b.offsetLeft,w=b.offsetWidth||b.getBoundingClientRect().width;
- if(instant)ind.style.setProperty('transition','none','important');
- ind.style.transform='translateX('+x+'px)';
- ind.style.width=w+'px';
- if(instant){void ind.offsetWidth;ind.style.removeProperty('transition')}
+function movePill(n,instant){
+ const pill=nav.querySelector('.nav-indicator'),b=btns[n];
+ if(!pill||!b)return;
+ const pos=b.offsetLeft,width=b.offsetWidth;
+ if(instant)pill.style.transition='none';
+ pill.style.transform='translateX('+pos+'px)';
+ pill.style.width=width+'px';
+ if(instant){void pill.offsetWidth;pill.style.removeProperty('transition')}
 }
-function setActive(n){
+function activate(n,instant){
  active=n;
- btns.forEach((b,j)=>{b.classList.toggle('on',j===n);b.setAttribute('aria-current',j===n?'page':'false')});
- moveIndicator(n)}
-function pick(n,k){
- setActive(n);closeAll();
- requestAnimationFrame(()=>moveIndicator(n));
+ btns.forEach((b,j)=>{
+  b.classList.toggle('on',j===n);
+  b.setAttribute('aria-current',j===n?'page':'false')});
+ movePill(n,instant)}
+function selectTab(n,k){
+ activate(n);closeAll();
+ requestAnimationFrame(()=>movePill(n));
  if(k==='home'){join.scrollTo&&join.scrollTo(0,0);return}
  if(k==='sched')click('scbtn');else if(k==='rank')click('trbtn');else if(k==='theme')click('thbtn');else profile()}
-join.appendChild(nav);setActive(0);moveIndicator(0,true);
-requestAnimationFrame(()=>moveIndicator(active,true));
-addEventListener('resize',()=>moveIndicator(active,true));
-if(window.ResizeObserver)new ResizeObserver(()=>moveIndicator(active,true)).observe(nav);
+join.appendChild(nav);activate(0,true);
+requestAnimationFrame(()=>movePill(active,true));
+window.addEventListener('load',()=>activate(active,true));
+window.addEventListener('resize',()=>movePill(active,true));
+if(window.ResizeObserver)new ResizeObserver(()=>movePill(active,true)).observe(nav);
 let kb=false;
 document.addEventListener('focusin',e=>{if(e.target&&e.target.tagName==='INPUT')kb=true});
 document.addEventListener('focusout',()=>setTimeout(()=>{kb=!!(document.activeElement&&document.activeElement.tagName==='INPUT')},120));
@@ -135,6 +140,6 @@ function profile(){
   row('Foto profil','Tampil di kursi bioskop',act('Ubah',()=>go('avbtn'))),
   row('Wallpaper','Latar halaman utama',act('Ubah',()=>go('wpbtn'))),
   row('Notifikasi','Undangan dan pengingat',act('Atur',()=>go('hpbtn')))),
-  sec('Akun'),group(row(USER||GUEST?'Ganti akun':'Masuk',USER||GUEST?'Keluar dari sesi ini':'Masuk atau daftar',act(USER||GUEST?'Keluar':'Masuk',()=>{o.remove();click('lo');setActive(0)},true))));
+  sec('Akun'),group(row(USER||GUEST?'Ganti akun':'Masuk',USER||GUEST?'Keluar dari sesi ini':'Masuk atau daftar',act(USER||GUEST?'Keluar':'Masuk',()=>{o.remove();click('lo');activate(0)},true))));
  o.onclick=e=>{if(e.target===o)o.remove()};document.body.appendChild(o)}
 })();

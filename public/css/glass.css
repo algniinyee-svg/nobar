@@ -9,6 +9,7 @@ body .nbnav {
     inset 0 1px 0 var(--nb-glass-rim),
     inset 0 -1px 0 rgba(0, 0, 0, 0.35),
     var(--nb-glass-shadow) !important;
+  overflow: hidden;
   isolation: isolate;
 }
 
@@ -30,16 +31,25 @@ body .nbnav::after {
 
 body .nav-indicator {
   position: absolute;
+  top: 4px;
+  bottom: 4px;
+  left: 0;
   z-index: 1;
   pointer-events: none;
   will-change: transform, width;
   border-radius: 9999px;
-  background: rgba(77, 240, 255, 0.15);
-  border: 1px solid #4df0ff;
-  box-shadow: 0 0 15px rgba(77, 240, 255, 0.3);
+  background: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.15) 0%,
+    rgba(255, 255, 255, 0.05) 100%
+  );
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  box-shadow:
+    inset 0 1px 1px rgba(255, 255, 255, 0.4),
+    0 4px 15px rgba(0, 0, 0, 0.2);
   transition:
-    transform 0.35s cubic-bezier(0.25, 1, 0.5, 1),
-    width 0.35s cubic-bezier(0.25, 1, 0.5, 1) !important;
+    transform 0.4s cubic-bezier(0.25, 1, 0.5, 1),
+    width 0.4s cubic-bezier(0.25, 1, 0.5, 1);
 }
 
 body .nbn {
@@ -53,12 +63,18 @@ body .nbn {
   transition: color 0.2s ease !important;
 }
 
+body .nbn > * {
+  position: relative;
+  z-index: 2;
+}
+
 body .nbn:hover,
 body .nbn:focus,
 body .nbn:focus-visible,
 body .nbn:active,
 body .nbn.on,
-body .nbn.active {
+body .nbn.active,
+body .nbnav .nav-item.active {
   background: transparent !important;
   border: 0 !important;
   box-shadow: none !important;

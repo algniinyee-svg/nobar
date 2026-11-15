@@ -253,7 +253,13 @@ const server = http.createServer(async (req, res) => {
   const p = path.join(PUB, path.normalize(f).replace(/^(\.\.[/\\])+/, ''));
   fs.readFile(p, (e, d) => {
     if (e) { res.writeHead(404); return res.end('Not found'); }
-    res.writeHead(200, { 'Content-Type': MIME[path.extname(p)] || 'application/octet-stream' }); res.end(d);
+    const ext = path.extname(p).toLowerCase();
+    const revalidate = ['.html', '.js', '.css', '.json'].includes(ext);
+    res.writeHead(200, {
+      'Content-Type': MIME[ext] || 'application/octet-stream',
+      'Cache-Control': revalidate ? 'no-cache' : 'public,max-age=3600'
+    });
+    res.end(d);
   });
 });
 
