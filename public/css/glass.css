@@ -32,13 +32,14 @@ body .nav-indicator {
   position: absolute;
   z-index: 1;
   pointer-events: none;
+  will-change: transform, width;
   border-radius: 9999px;
   background: rgba(77, 240, 255, 0.15);
   border: 1px solid #4df0ff;
   box-shadow: 0 0 15px rgba(77, 240, 255, 0.3);
   transition:
     transform 0.35s cubic-bezier(0.25, 1, 0.5, 1),
-    width 0.35s cubic-bezier(0.25, 1, 0.5, 1);
+    width 0.35s cubic-bezier(0.25, 1, 0.5, 1) !important;
 }
 
 body .nbn {
@@ -47,11 +48,21 @@ body .nbn {
   background: transparent !important;
   border: 0 !important;
   box-shadow: none !important;
-  outline: 0;
+  outline: 0 !important;
   -webkit-tap-highlight-color: transparent;
-  transition:
-    color 0.2s ease,
-    transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+  transition: color 0.2s ease !important;
+}
+
+body .nbn:hover,
+body .nbn:focus,
+body .nbn:focus-visible,
+body .nbn:active,
+body .nbn.on,
+body .nbn.active {
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  outline: 0 !important;
 }
 
 body .nbn.on {
