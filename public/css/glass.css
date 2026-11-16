@@ -1,7 +1,8 @@
 body .nbnav {
   border-radius: 9999px !important;
-  border: 1px solid rgba(255, 255, 255, 0.3) !important;
-  background-color: rgba(255, 255, 255, 0.15) !important;
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
   overflow: hidden;
   touch-action: pan-y;
   -webkit-user-select: none;
@@ -11,6 +12,7 @@ body .nbnav {
 
 body .nbnav::before {
   content: "";
+  display: none !important;
   position: absolute;
   inset: 0;
   z-index: 0;
@@ -24,6 +26,7 @@ body .nbnav::before {
 
 body .nbnav::after {
   content: "";
+  display: none !important;
   position: absolute;
   inset: 0;
   z-index: 0;
@@ -49,24 +52,11 @@ body .nav-indicator {
   touch-action: none;
   will-change: transform, width;
   border-radius: 9999px;
-  border: 1px solid transparent;
-  background:
-    linear-gradient(135deg, rgba(255, 255, 255, 0.2) 0%, rgba(255, 255, 255, 0.05) 100%)
-      padding-box,
-    linear-gradient(
-      135deg,
-      rgba(255, 255, 255, 0.62) 0%,
-      rgba(255, 255, 255, 0.08) 46%,
-      rgba(255, 255, 255, 0.32) 100%
-    ) border-box;
-  background-clip: padding-box, border-box;
-  background-origin: padding-box, border-box;
-  -webkit-backdrop-filter: blur(4px) saturate(1.35);
-  backdrop-filter: blur(4px) saturate(1.35);
-  box-shadow:
-    inset 0 1px 1px rgba(255, 255, 255, 0.5),
-    inset 0 -1px 1px rgba(0, 0, 0, 0.3),
-    0 8px 32px rgba(0, 0, 0, 0.4);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  background: rgba(255, 255, 255, 0.2) !important;
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+  box-shadow: none !important;
   isolation: isolate;
   transition:
     transform 0.4s cubic-bezier(0.25, 1, 0.5, 1),
@@ -75,6 +65,7 @@ body .nav-indicator {
 
 body .nav-indicator::before {
   content: "";
+  display: none !important;
   position: absolute;
   inset: 0;
   z-index: 0;
@@ -88,6 +79,7 @@ body .nav-indicator::before {
 
 body .nav-indicator::after {
   content: "";
+  display: none !important;
   position: absolute;
   inset: 0;
   z-index: 0;
@@ -98,15 +90,6 @@ body .nav-indicator::after {
     linear-gradient(180deg, rgba(255, 255, 255, 0.18), transparent 42%);
   filter: url(#liquid-glass-refraction);
   opacity: 0.75;
-}
-
-@supports (backdrop-filter: blur(4px) url(#liquid-glass-refraction)) {
-  @supports (-webkit-app-region: inherit) {
-    body .nav-indicator {
-      -webkit-backdrop-filter: blur(4px) url(#liquid-glass-refraction);
-      backdrop-filter: blur(4px) url(#liquid-glass-refraction);
-    }
-  }
 }
 
 body .nbn {
@@ -284,8 +267,8 @@ html.lite body .top.glass {
 }
 
 html.lite body .nav-indicator {
-  -webkit-backdrop-filter: blur(4px) !important;
-  backdrop-filter: blur(4px) !important;
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
 }
 
 html.perf body .top.glass {
@@ -310,25 +293,13 @@ html[data-nb-theme="light"] body .nbn.on {
 }
 
 html[data-nb-theme="light"] body .nav-indicator {
-  background:
-    linear-gradient(135deg, rgba(255, 255, 255, 0.74) 0%, rgba(255, 255, 255, 0.38) 100%)
-      padding-box,
-    linear-gradient(
-      135deg,
-      rgba(255, 255, 255, 0.95) 0%,
-      rgba(60, 150, 210, 0.28) 48%,
-      rgba(255, 255, 255, 0.72) 100%
-    ) border-box;
-  background-clip: padding-box, border-box;
-  background-origin: padding-box, border-box;
-  box-shadow:
-    inset 0 1px 1px rgba(255, 255, 255, 0.95),
-    inset 0 -1px 1px rgba(14, 17, 22, 0.12),
-    0 8px 32px rgba(14, 17, 22, 0.22);
+  background: rgba(255, 255, 255, 0.2) !important;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  box-shadow: none !important;
 }
 
 html[data-nb-theme="light"] body .nbnav {
-  background-color: rgba(255, 255, 255, 0.15) !important;
+  background: transparent !important;
 }
 
 @media (prefers-reduced-motion: reduce) {
