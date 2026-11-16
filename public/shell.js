@@ -89,7 +89,7 @@ function sheet(o){
 new MutationObserver(ms=>ms.forEach(m=>m.addedNodes.forEach(n=>{if(n.nodeType===1&&n.classList&&n.classList.contains('ov'))sheet(n)}))).observe(document.body,{childList:true});
 /* ---------- navigasi kaca mengambang ---------- */
 const join=$('join');
-const nav=mk('div',0,'nbnav'),ind=mk('div',0,'nav-indicator');nav.appendChild(ind);
+const nav=mk('div',0,'nbnav glass'),ind=mk('div',0,'nav-indicator');nav.appendChild(ind);
 const items=[['page-beranda','Beranda','home'],['page-jadwal','Jadwal','calendar'],['page-peringkat','Peringkat','trophy'],['page-profil','Profil','user'],['page-tema','Tema','palette']];
 const PAGES=items.map(([id])=>id);
 let currentPage='';
@@ -207,8 +207,7 @@ nav.addEventListener('click',e=>{
  suppressClick=false;clearTimeout(suppressTimer);
  e.preventDefault();e.stopPropagation();
 },true);
-const navHost=$('nav-glass');
-(navHost||join).appendChild(nav);switchPage('page-beranda');movePill(0,true);
+join.appendChild(nav);switchPage('page-beranda');movePill(0,true);
 requestAnimationFrame(()=>movePill(active,true));
 window.addEventListener('load',()=>activate(active,true));
 window.addEventListener('resize',()=>movePill(active,true));
@@ -216,7 +215,7 @@ if(window.ResizeObserver)new ResizeObserver(()=>movePill(active,true)).observe(n
 let kb=false;
 document.addEventListener('focusin',e=>{if(e.target&&e.target.tagName==='INPUT')kb=true});
 document.addEventListener('focusout',()=>setTimeout(()=>{kb=!!(document.activeElement&&document.activeElement.tagName==='INPUT')},120));
-setInterval(()=>{const h=$('nav-glass');if(h)h.classList.toggle('hide',kb)},400);
+setInterval(()=>nav.classList.toggle('hide',kb),400);
 /* ---------- halaman profil ---------- */
 function profile(){
  const g=$('page-profil-body');if(!g)return;
