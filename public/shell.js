@@ -89,7 +89,7 @@ function sheet(o){
 new MutationObserver(ms=>ms.forEach(m=>m.addedNodes.forEach(n=>{if(n.nodeType===1&&n.classList&&n.classList.contains('ov'))sheet(n)}))).observe(document.body,{childList:true});
 /* ---------- navigasi kaca mengambang ---------- */
 const join=$('join');
-const nav=mk('div',0,'nbnav glassify'),ind=mk('div',0,'nav-indicator');nav.appendChild(ind);
+const nav=mk('div',0,'nbnav'),ind=mk('div',0,'nav-indicator');nav.appendChild(ind);
 const items=[['page-beranda','Beranda','home'],['page-jadwal','Jadwal','calendar'],['page-peringkat','Peringkat','trophy'],['page-profil','Profil','user'],['page-tema','Tema','palette']];
 const PAGES=items.map(([id])=>id);
 let currentPage='';
