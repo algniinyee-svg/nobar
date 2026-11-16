@@ -159,11 +159,12 @@ function snapPill(n){
  movePill(n);
 }
 function endDrag(e){
+ const pill=nav.querySelector('.nav-indicator');
+ if(pill)pill.classList.remove('pressed');
  if(!drag.on)return;
  drag.on=false;
  if(!drag.moved)return;
  e.preventDefault();
- const pill=nav.querySelector('.nav-indicator');
  const w=drag.w||(pill?pill.offsetWidth:0);
  const idx=nearestIndex(pillX,w);
  markActive(idx);
@@ -176,12 +177,15 @@ function endDrag(e){
 nav.addEventListener('touchstart',e=>{
  if(e.touches.length!==1)return;
  const t=e.touches[0],pill=nav.querySelector('.nav-indicator');
+ if(pill)pill.classList.add('pressed');
  drag.on=true;drag.moved=false;
  drag.x0=t.clientX;drag.y0=t.clientY;
  drag.left=pillX;drag.w=pill?pill.offsetWidth:0;
 },{passive:true});
 nav.addEventListener('touchmove',e=>{
  if(!drag.on||e.touches.length!==1)return;
+ const pressedPill=nav.querySelector('.nav-indicator');
+ if(pressedPill)pressedPill.classList.add('pressed');
  const t=e.touches[0],dx=t.clientX-drag.x0,dy=t.clientY-drag.y0;
  if(!drag.moved){
   if(Math.abs(dx)<6||Math.abs(dx)<=Math.abs(dy))return;
@@ -202,6 +206,15 @@ nav.addEventListener('touchmove',e=>{
 },{passive:false});
 nav.addEventListener('touchend',endDrag);
 nav.addEventListener('touchcancel',endDrag);
+nav.addEventListener('mousedown',e=>{
+ if(e.button!==0)return;
+ const pill=nav.querySelector('.nav-indicator');
+ if(pill)pill.classList.add('pressed');
+});
+document.addEventListener('mouseup',()=>{
+ const pill=nav.querySelector('.nav-indicator');
+ if(pill)pill.classList.remove('pressed');
+});
 nav.addEventListener('click',e=>{
  if(!suppressClick)return;
  suppressClick=false;clearTimeout(suppressTimer);

@@ -1,79 +1,15 @@
 body .nbnav {
   border-radius: 9999px !important;
-  background: rgba(255, 255, 255, 0.05) !important;
-  -webkit-backdrop-filter: blur(30px) saturate(200%) !important;
-  backdrop-filter: blur(30px) saturate(200%) !important;
+  background: rgba(20, 20, 20, 0.4) !important;
+  -webkit-backdrop-filter: blur(20px) !important;
+  backdrop-filter: blur(20px) !important;
   border: 1px solid rgba(255, 255, 255, 0.2) !important;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3) !important;
-  filter: url(#lens-distortion);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5) !important;
   overflow: hidden;
   touch-action: pan-y;
   -webkit-user-select: none;
   user-select: none;
   isolation: isolate;
-}
-
-body .nbnav::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  z-index: 0;
-  border-radius: inherit;
-  pointer-events: none;
-  padding: 1.5px;
-  background: conic-gradient(
-    from 210deg,
-    rgba(0, 255, 255, 0.7),
-    rgba(150, 80, 255, 0.6),
-    rgba(255, 80, 180, 0.45),
-    rgba(0, 255, 255, 0.7)
-  );
-  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
-  -webkit-mask-composite: xor;
-  mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
-  mask-composite: exclude;
-  mix-blend-mode: screen;
-  opacity: 0.85;
-  animation: chromaShift 7s linear infinite;
-}
-
-body .nbnav::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  z-index: 0;
-  border-radius: inherit;
-  pointer-events: none;
-  background: linear-gradient(
-    115deg,
-    transparent 0%,
-    rgba(255, 255, 255, 0.08) 35%,
-    rgba(255, 255, 255, 0.02) 50%,
-    rgba(255, 255, 255, 0.06) 65%,
-    transparent 100%
-  );
-  background-size: 250% 250%;
-  mix-blend-mode: screen;
-  opacity: 0.6;
-  animation: liquidFlow 8s ease-in-out infinite;
-}
-
-@keyframes chromaShift {
-  to {
-    filter: hue-rotate(360deg);
-  }
-}
-
-@keyframes liquidFlow {
-  0% {
-    background-position: 0% 50%;
-  }
-  50% {
-    background-position: 100% 50%;
-  }
-  100% {
-    background-position: 0% 50%;
-  }
 }
 
 body .nav-indicator {
@@ -87,18 +23,20 @@ body .nav-indicator {
   touch-action: none;
   will-change: transform, width;
   border-radius: 9999px;
-  border: 1px solid rgba(255, 255, 255, 0.24);
-  background: rgba(255, 255, 255, 0.1) !important;
-  -webkit-backdrop-filter: blur(6px) saturate(1.4) !important;
-  backdrop-filter: blur(6px) saturate(1.4) !important;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.15);
+  box-shadow: inset 0 1px 2px rgba(255, 255, 255, 0.4);
+  transition: all 0.3s ease;
+}
+
+body .nav-indicator.pressed {
+  scale: 1.05;
+  background: rgba(255, 255, 255, 0.25);
   box-shadow:
-    inset 0 1px 1px rgba(255, 255, 255, 0.6),
-    inset 0 -1px 1px rgba(0, 0, 0, 0.35),
-    0 4px 16px rgba(0, 0, 0, 0.28) !important;
-  isolation: isolate;
-  transition:
-    transform 0.4s cubic-bezier(0.25, 1, 0.5, 1),
-    width 0.4s cubic-bezier(0.25, 1, 0.5, 1);
+    inset 0 1px 4px rgba(255, 255, 255, 0.8),
+    -4px 0 15px rgba(255, 0, 0, 0.5),
+    4px 0 15px rgba(0, 255, 255, 0.5) !important;
+  filter: url(#lens-distortion);
 }
 
 body .nbn {
@@ -297,13 +235,9 @@ html[data-nb-theme="light"] body .nbn.on {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  body .nbnav,
-  body .nbnav::before,
-  body .nbnav::after,
   body .top.glass::after,
   body .nav-indicator,
   body .nbn {
-    animation: none !important;
     transition: none !important;
   }
   body .nb-page.on {
