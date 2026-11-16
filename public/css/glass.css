@@ -5,7 +5,6 @@ body .nbnav {
   backdrop-filter: blur(20px) !important;
   border: 1px solid rgba(255, 255, 255, 0.2) !important;
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5) !important;
-  overflow: hidden;
   touch-action: pan-y;
   -webkit-user-select: none;
   user-select: none;
@@ -26,17 +25,13 @@ body .nav-indicator {
   border: 1px solid rgba(255, 255, 255, 0.2);
   background: rgba(255, 255, 255, 0.15);
   box-shadow: inset 0 1px 2px rgba(255, 255, 255, 0.4);
-  transition: all 0.3s ease;
+  transition: transform 0.5s cubic-bezier(0.34, 1.56, 0.64, 1), width 0.4s ease, background 0.3s ease, box-shadow 0.3s ease, scale 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) !important;
 }
 
 body .nav-indicator.pressed {
-  scale: 1.05;
-  background: rgba(255, 255, 255, 0.25);
-  box-shadow:
-    inset 0 1px 4px rgba(255, 255, 255, 0.8),
-    -4px 0 15px rgba(255, 0, 0, 0.5),
-    4px 0 15px rgba(0, 255, 255, 0.5) !important;
-  filter: url(#lens-distortion);
+  scale: 1.15 1.1 !important;
+  background: radial-gradient(circle at 50% 0%, rgba(255, 255, 255, 0.4) 0%, rgba(255, 255, 255, 0.1) 100%) !important;
+  box-shadow: inset 0 2px 4px rgba(255, 255, 255, 0.8), -6px 0px 15px rgba(255, 0, 100, 0.4), 6px 0px 15px rgba(0, 255, 255, 0.4), 0px 6px 15px rgba(0, 100, 255, 0.3) !important;
 }
 
 body .nbn {
@@ -53,6 +48,17 @@ body .nbn {
 body .nbn > * {
   position: relative;
   z-index: 2;
+}
+
+body .nbnav .nav-item svg,
+body .nbnav .nav-item span {
+  transform-origin: center;
+  transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+body .nbnav.pressed .nav-item.on svg,
+body .nbnav.pressed .nav-item.on span {
+  transform: scale(1.2) translateY(-2px);
 }
 
 body .nbn:hover,
@@ -237,7 +243,9 @@ html[data-nb-theme="light"] body .nbn.on {
 @media (prefers-reduced-motion: reduce) {
   body .top.glass::after,
   body .nav-indicator,
-  body .nbn {
+  body .nbn,
+  body .nbnav .nav-item svg,
+  body .nbnav .nav-item span {
     transition: none !important;
   }
   body .nb-page.on {

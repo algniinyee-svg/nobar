@@ -109,7 +109,7 @@ function movePill(n,instant){
  const pill=nav.querySelector('.nav-indicator'),b=btns[n];
  if(!pill||!b)return;
  const pos=b.offsetLeft,width=b.offsetWidth;
- if(instant)pill.style.transition='none';
+ if(instant)pill.style.setProperty('transition','none','important');
  pillX=pos;
  pill.style.transform='translateX('+pos+'px)';
  pill.style.width=width+'px';
@@ -161,6 +161,7 @@ function snapPill(n){
 function endDrag(e){
  const pill=nav.querySelector('.nav-indicator');
  if(pill)pill.classList.remove('pressed');
+ nav.classList.remove('pressed');
  if(!drag.on)return;
  drag.on=false;
  if(!drag.moved)return;
@@ -178,6 +179,7 @@ nav.addEventListener('touchstart',e=>{
  if(e.touches.length!==1)return;
  const t=e.touches[0],pill=nav.querySelector('.nav-indicator');
  if(pill)pill.classList.add('pressed');
+ nav.classList.add('pressed');
  drag.on=true;drag.moved=false;
  drag.x0=t.clientX;drag.y0=t.clientY;
  drag.left=pillX;drag.w=pill?pill.offsetWidth:0;
@@ -186,6 +188,7 @@ nav.addEventListener('touchmove',e=>{
  if(!drag.on||e.touches.length!==1)return;
  const pressedPill=nav.querySelector('.nav-indicator');
  if(pressedPill)pressedPill.classList.add('pressed');
+ nav.classList.add('pressed');
  const t=e.touches[0],dx=t.clientX-drag.x0,dy=t.clientY-drag.y0;
  if(!drag.moved){
   if(Math.abs(dx)<6||Math.abs(dx)<=Math.abs(dy))return;
@@ -193,7 +196,7 @@ nav.addEventListener('touchmove',e=>{
   const pill=nav.querySelector('.nav-indicator');
   drag.left=currentPillX(pill);pillX=drag.left;
   drag.x0=t.clientX;
-  if(pill){pill.style.transition='none';pill.style.transform='translateX('+drag.left+'px)';drag.w=pill.offsetWidth}
+  if(pill){pill.style.setProperty('transition','none','important');pill.style.transform='translateX('+drag.left+'px)';drag.w=pill.offsetWidth}
  }
  e.preventDefault();
  const pill=nav.querySelector('.nav-indicator');
@@ -210,10 +213,12 @@ nav.addEventListener('mousedown',e=>{
  if(e.button!==0)return;
  const pill=nav.querySelector('.nav-indicator');
  if(pill)pill.classList.add('pressed');
+ nav.classList.add('pressed');
 });
 document.addEventListener('mouseup',()=>{
  const pill=nav.querySelector('.nav-indicator');
  if(pill)pill.classList.remove('pressed');
+ nav.classList.remove('pressed');
 });
 nav.addEventListener('click',e=>{
  if(!suppressClick)return;
